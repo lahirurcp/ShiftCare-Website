@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { fadeUp, scaleIn, staggerContainer, viewport } from "@/lib/animations";
+import { fadeUp, scaleReveal, staggerContainer, viewport } from "@/lib/animations";
 
 export function DemoSection() {
   return (
@@ -54,12 +54,11 @@ export function DemoSection() {
 
         {/* Browser chrome */}
         <motion.div
-          variants={scaleIn}
+          variants={scaleReveal}
           initial="hidden"
           whileInView="visible"
           viewport={viewport}
-          className="relative mx-auto rounded-2xl overflow-hidden shadow-2xl shadow-black/60"
-          style={{ border: "1px solid rgba(0,212,160,0.15)" }}
+          className="relative mx-auto rounded-2xl overflow-hidden shadow-2xl shadow-black/60 shadow-sc-teal/10 ring-1 ring-sc-teal/20"
         >
           {/* Browser top bar */}
           <div className="flex items-center gap-3 px-4 py-3 bg-sc-surface2 border-b border-white/5">
@@ -77,9 +76,13 @@ export function DemoSection() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-sc-teal font-medium px-2 py-0.5 rounded bg-sc-teal/10 border border-sc-teal/20">
+              <motion.span
+                className="text-xs text-sc-teal font-medium px-2 py-0.5 rounded bg-sc-teal/10 border border-sc-teal/20"
+                animate={{ opacity: [1, 0.65, 1] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+              >
                 LIVE
-              </span>
+              </motion.span>
             </div>
           </div>
 

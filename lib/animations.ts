@@ -66,6 +66,50 @@ export const staggerFast: Variants = {
   },
 };
 
+/** Hero headline lines — slightly slower stagger */
+export const staggerHero: Variants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.13,
+      delayChildren: 0.06,
+    },
+  },
+};
+
+/** Softer entrance with brief blur (skip via reduced motion in components if needed) */
+export const blurIn: Variants = {
+  hidden: { opacity: 0, y: 28, filter: "blur(10px)" },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.7, ease },
+  },
+};
+
+/** Scroll / demo frame — spring instead of ease curve */
+export const scaleReveal: Variants = {
+  hidden: { opacity: 0, scale: 0.94, y: 20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 118, damping: 22, mass: 0.85 },
+  },
+};
+
+/** Stat columns — light pop */
+export const popIn: Variants = {
+  hidden: { opacity: 0, y: 12, scale: 0.96 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 200, damping: 20 },
+  },
+};
+
 const easeInOut: Easing = "easeInOut";
 
 export const floatingLoop = {

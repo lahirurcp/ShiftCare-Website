@@ -1,3 +1,4 @@
+import { AmbientBackdrop } from "@/components/shiftcare/AmbientBackdrop";
 import { Navigation } from "@/components/shiftcare/Navigation";
 import { HeroSection } from "@/components/shiftcare/HeroSection";
 import { DemoSection } from "@/components/shiftcare/DemoSection";
@@ -13,17 +14,20 @@ import { Footer } from "@/components/shiftcare/Footer";
 export default function Home() {
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-sc-bg">
-      <Navigation />
-      <HeroSection />
-      <DemoSection />
-      <ProblemSection />
-      <WorkflowSection />
-      <PatientsSection />
-      <MayaSection />
-      <FrameworkSection />
-      <EducatorsSection />
-      <CTASection />
-      <Footer />
+      <AmbientBackdrop />
+      <div className="relative z-10">
+        <Navigation />
+        <HeroSection />
+        <DemoSection />
+        <ProblemSection />
+        <WorkflowSection />
+        <PatientsSection />
+        <MayaSection />
+        <FrameworkSection />
+        <EducatorsSection />
+        <CTASection />
+        <Footer />
+      </div>
     </main>
   );
 }

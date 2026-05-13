@@ -69,30 +69,35 @@ export function Navigation() {
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm text-sc-text-2 hover:text-sc-text px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-150 font-medium"
-              >
-                {link.label}
-              </Link>
+              <motion.span key={link.href} whileHover={{ y: -1 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className="inline-block">
+                <Link
+                  href={link.href}
+                  className="text-sm text-sc-text-2 hover:text-sc-text px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-150 font-medium"
+                >
+                  {link.label}
+                </Link>
+              </motion.span>
             ))}
           </nav>
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-            <Link
-              href="/book"
-              className="text-sm text-sc-text-3 hover:text-sc-text-2 transition-colors px-4 py-2 font-medium"
-            >
-              Book demo
-            </Link>
-            <Link
-              href="#demo"
-              className="text-sm font-semibold bg-sc-teal text-sc-bg px-5 py-2.5 rounded-lg hover:bg-sc-teal-2 transition-all duration-150 shadow-lg shadow-sc-teal/20 hover:shadow-sc-teal/35 hover:-translate-y-px"
-            >
-              Try simulator
-            </Link>
+            <motion.span whileHover={{ y: -1 }} className="inline-block" transition={{ type: "spring", stiffness: 400, damping: 28 }}>
+              <Link
+                href="/book"
+                className="text-sm text-sc-text-3 hover:text-sc-text-2 transition-colors px-4 py-2 font-medium"
+              >
+                Book demo
+              </Link>
+            </motion.span>
+            <motion.span whileHover={{ y: -2, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ type: "spring", stiffness: 420, damping: 24 }} className="inline-block">
+              <Link
+                href="#demo"
+                className="text-sm font-semibold bg-sc-teal text-sc-bg px-5 py-2.5 rounded-lg hover:bg-sc-teal-2 transition-all duration-150 shadow-lg shadow-sc-teal/20 hover:shadow-sc-teal/35"
+              >
+                Try simulator
+              </Link>
+            </motion.span>
           </div>
 
           {/* Mobile burger */}
