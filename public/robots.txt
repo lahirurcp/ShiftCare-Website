@@ -1,0 +1,11 @@
+User-agent: *
+# Block direct access to the simulator — it must be used via the landing page
+Disallow: /ShiftCare_v11.html
+# Block Next.js internals
+Disallow: /_next/
+Disallow: /api/
+
+Allow: /
+
+# Sitemap (update with your real domain when deployed)
+# Sitemap: https://shiftcare.io/sitemap.xml

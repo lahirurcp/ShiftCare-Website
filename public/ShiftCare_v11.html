@@ -1,0 +1,4255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ShiftCare: Nurse Triage Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════ */
+:root{
+  /* Core palette */
+  --c-bg:        #060d1a;
+  --c-surface:   #0d1b2e;
+  --c-surface2:  #132033;
+  --c-border:    rgba(255,255,255,.07);
+  --c-border-hi: rgba(255,255,255,.14);
+
+  /* Accent */
+  --c-blue:   #38bdf8;
+  --c-blue-d: #0ea5e9;
+  --c-indigo: #6366f1;
+  --c-green:  #10b981;
+  --c-red:    #ef4444;
+  --c-amber:  #f59e0b;
+
+  /* Text */
+  --c-text:    #f1f5f9;
+  --c-text-2:  #94a3b8;
+  --c-text-3:  #475569;
+
+  /* Radii */
+  --r-sm:  8px;
+  --r-md:  14px;
+  --r-lg:  20px;
+  --r-xl:  26px;
+
+  /* Shadows */
+  --shadow-panel: 0 32px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+  --shadow-btn:   0 8px 24px rgba(14,165,233,.3);
+
+  /* Fonts */
+  --f-display: 'Syne', sans-serif;
+  --f-body:    'Inter', sans-serif;
+  --f-mono:    'JetBrains Mono', monospace;
+}
+
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  font-family:var(--f-body);
+  background:var(--c-bg);color:var(--c-text);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ═══════════════════════════════════════════
+   HUD — slimmer, cleaner, information hierarchy
+═══════════════════════════════════════════ */
+#hud{
+  position:fixed;top:0;left:0;right:0;z-index:20;
+  display:none;flex-direction:row;
+  align-items:center;gap:10px;
+  padding:0 20px;height:52px;
+  background:rgba(6,13,26,.88);
+  backdrop-filter:blur(24px) saturate(180%);
+  border-bottom:1px solid var(--c-border-hi);
+}
+#hud .brand{
+  font-family:var(--f-display);font-size:17px;font-weight:800;
+  letter-spacing:-.3px;flex:1;display:flex;align-items:center;gap:9px;
+  color:var(--c-text);
+}
+#hud .brand .cross{
+  display:inline-flex;width:26px;height:26px;border-radius:7px;
+  align-items:center;justify-content:center;font-size:14px;
+  background:linear-gradient(135deg,var(--c-blue),var(--c-indigo));
+  box-shadow:0 4px 12px rgba(99,102,241,.4);
+}
+
+/* HUD pills */
+.hudPill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--c-surface2);
+  border:1px solid var(--c-border-hi);
+  border-radius:999px;padding:5px 12px;
+  font-family:var(--f-mono);font-size:13px;font-weight:700;
+  white-space:nowrap;color:var(--c-text);
+}
+.hudPill .pLabel{
+  font-family:var(--f-body);font-size:10px;font-weight:600;
+  color:var(--c-text-2);text-transform:uppercase;letter-spacing:.6px;
+}
+#timerHud{transition:background .4s,color .4s}
+#timerHud.urgent{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.35);color:#fbbf24}
+#timerHud.critical{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.4);color:#fca5a5}
+
+/* Progress bar */
+#progressOuter{
+  flex:1;max-width:180px;height:4px;
+  background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;
+}
+#progressInner{
+  height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--c-green),var(--c-blue));
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+}
+
+/* Stamina */
+#staminaWrap{display:flex;flex-direction:column;gap:3px;min-width:100px}
+#staminaWrap .sLabel{
+  font-size:9px;font-weight:700;color:var(--c-text-3);
+  text-transform:uppercase;letter-spacing:.8px;
+}
+#staminaOuter{height:5px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
+#staminaInner{
+  height:100%;width:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--c-green),#34d399);
+  transition:width .18s ease, background .4s;
+}
+
+/* ═══════════════════════════════════════════
+   GAME WRAP + CANVAS
+═══════════════════════════════════════════ */
+#gameWrap{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:60px 14px 14px;
+}
+canvas{
+  width:min(1120px,98vw);height:auto;
+  background:#dbeafe;
+  border:2px solid rgba(255,255,255,.35);
+  border-radius:18px;
+  box-shadow:0 24px 80px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.25);
+}
+
+/* ═══════════════════════════════════════════
+   PANELS — base
+═══════════════════════════════════════════ */
+.panel{
+  position:fixed;left:50%;transform:translateX(-50%);
+  width:min(880px,96vw);z-index:30;display:none;
+}
+
+/* Centered modals */
+#menuPanel,#levelPanel,#howPanel,#endPanel,#debriefPanel{
+  top:50%;transform:translate(-50%,-50%);
+  background:var(--c-surface);
+  border:1px solid var(--c-border-hi);
+  border-radius:var(--r-xl);
+  padding:36px 32px;text-align:center;
+  box-shadow:var(--shadow-panel);
+  animation:popIn .28s cubic-bezier(.34,1.4,.64,1);
+}
+@keyframes popIn{
+  from{opacity:0;transform:translate(-50%,-47%) scale(.93)}
+  to  {opacity:1;transform:translate(-50%,-50%) scale(1)}
+}
+
+/* Bottom sheet panels */
+#interactionPanel,#vitalsPanel,#medicationPanel,
+#carePanel,#quizPanel,#docPanel{
+  bottom:16px;
+  background:var(--c-surface);
+  border:1px solid var(--c-border-hi);
+  border-radius:var(--r-xl);
+  padding:22px 24px;
+  box-shadow:var(--shadow-panel);
+  animation:sheetUp .22s cubic-bezier(.34,1.4,.64,1);
+}
+@keyframes sheetUp{
+  from{opacity:0;transform:translateX(-50%) translateY(16px) scale(.98)}
+  to  {opacity:1;transform:translateX(-50%) translateY(0)   scale(1)}
+}
+
+/* Top feedback strip */
+#feedbackPanel{
+  top:62px;
+  background:var(--c-surface);
+  border:1px solid var(--c-border-hi);
+  border-radius:var(--r-lg);
+  padding:16px 20px;
+  box-shadow:var(--shadow-panel);
+  animation:stripDown .22s cubic-bezier(.34,1.4,.64,1);
+}
+@keyframes stripDown{
+  from{opacity:0;transform:translateX(-50%) translateY(-14px)}
+  to  {opacity:1;transform:translateX(-50%) translateY(0)}
+}
+
+/* ═══════════════════════════════════════════
+   TYPOGRAPHY HELPERS
+═══════════════════════════════════════════ */
+.panelTitle{
+  font-family:var(--f-display);
+  font-size:clamp(22px,3vw,30px);font-weight:800;
+  color:var(--c-text);letter-spacing:-.5px;margin-bottom:6px;
+}
+.panelSub{
+  color:var(--c-text-2);font-size:14px;line-height:1.6;
+  margin-bottom:22px;
+}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════ */
+.primaryBtn{
+  border:0;border-radius:var(--r-md);
+  padding:12px 22px;font-size:15px;font-weight:700;
+  cursor:pointer;transition:all .16s;
+  font-family:var(--f-body);
+  background:linear-gradient(135deg,var(--c-blue-d),var(--c-indigo));
+  color:#fff;
+  box-shadow:0 8px 20px rgba(99,102,241,.3);
+  letter-spacing:-.1px;
+}
+.primaryBtn:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(99,102,241,.4)}
+.primaryBtn:active{transform:translateY(0)}
+.primaryBtn:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
+
+.secondaryBtn{
+  border:1px solid var(--c-border-hi);
+  border-radius:var(--r-md);padding:12px 22px;
+  font-size:15px;font-weight:600;cursor:pointer;transition:all .16s;
+  font-family:var(--f-body);
+  background:rgba(255,255,255,.05);color:var(--c-text-2);
+}
+.secondaryBtn:hover{background:rgba(255,255,255,.1);color:var(--c-text);border-color:var(--c-border-hi)}
+
+/* ═══════════════════════════════════════════
+   LOGO MARK
+═══════════════════════════════════════════ */
+.logoMark{
+  width:72px;height:72px;border-radius:20px;
+  margin:0 auto 16px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--c-blue),var(--c-indigo));
+  color:#fff;font-size:38px;font-weight:900;
+  box-shadow:0 16px 40px rgba(99,102,241,.4);
+}
+.gameTitle{
+  font-family:var(--f-display);
+  font-size:clamp(36px,5vw,56px);font-weight:800;
+  letter-spacing:-2px;color:var(--c-text);line-height:1;
+}
+.subtitle{
+  color:var(--c-text-2);font-size:15px;
+  margin:10px auto 22px;max-width:520px;line-height:1.65;
+}
+.menuActions{display:grid;gap:10px;max-width:300px;margin:0 auto}
+
+/* ═══════════════════════════════════════════
+   LEVEL GRID
+═══════════════════════════════════════════ */
+.levelGrid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:12px;margin-top:20px;text-align:left;
+}
+.levelCard{
+  border:1px solid var(--c-border);border-radius:var(--r-lg);
+  padding:16px;background:rgba(255,255,255,.03);
+  transition:all .18s;position:relative;overflow:hidden;
+}
+.levelCard::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(56,189,248,.04),transparent);
+  opacity:0;transition:opacity .2s;
+}
+.levelCard:not(.locked){cursor:pointer}
+.levelCard:not(.locked):hover{
+  transform:translateY(-3px);
+  border-color:rgba(56,189,248,.3);
+  box-shadow:0 12px 32px rgba(0,0,0,.3);
+}
+.levelCard:not(.locked):hover::before{opacity:1}
+.levelCard.locked{opacity:.35;filter:grayscale(.7)}
+.levelCard h3{
+  margin:8px 0 5px;color:var(--c-text);
+  font-family:var(--f-display);font-size:14px;font-weight:800;
+}
+.levelCard p{color:var(--c-text-2);font-size:12px;line-height:1.5;margin-bottom:10px}
+.levelMeta{
+  display:flex;flex-direction:column;gap:3px;
+  color:var(--c-text-3);font-size:11px;margin-bottom:12px;
+}
+.levelCard strong{font-size:13px;font-weight:700;color:var(--c-blue)}
+.levelCard.locked strong{color:var(--c-text-3)}
+.difficulty{
+  display:inline-flex;padding:3px 9px;border-radius:999px;
+  font-size:10px;font-weight:700;margin-bottom:6px;letter-spacing:.4px;
+}
+.easy  {background:rgba(16,185,129,.15);color:#34d399}
+.medium{background:rgba(245,158,11,.15);color:#fbbf24}
+.hard  {background:rgba(239,68,68,.15);color:#f87171}
+
+/* ═══════════════════════════════════════════
+   INTERACTION MENU — step pipeline
+═══════════════════════════════════════════ */
+#interactionPanel{width:min(860px,96vw)}
+#interactionPanel .iHeader{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+#interactionPanel .iHeader h3{
+  font-family:var(--f-display);font-size:20px;font-weight:800;
+  color:var(--c-text);
+}
+#interactionPanel .iHeader p{
+  color:var(--c-text-2);font-size:13px;
+}
+.interactionBtns{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+
+.intBtn{
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);padding:16px 10px 14px;
+  font-family:var(--f-body);font-size:12px;font-weight:700;
+  cursor:pointer;transition:all .18s;text-align:center;
+  color:var(--c-text-3);
+  background:rgba(255,255,255,.03);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  position:relative;overflow:hidden;
+}
+.intBtn::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;
+  height:2px;background:transparent;border-radius:0 0 var(--r-md) var(--r-md);
+  transition:background .18s;
+}
+.intBtn .intIcon{font-size:26px;line-height:1}
+.intBtn .intLabel{font-size:12px;font-weight:700;line-height:1.2}
+.intBtn:hover:not(:disabled){
+  background:rgba(56,189,248,.06);
+  border-color:rgba(56,189,248,.3);
+  color:var(--c-blue);transform:translateY(-2px);
+}
+.intBtn:hover:not(:disabled)::after{background:var(--c-blue)}
+.intBtn:disabled{opacity:.2;cursor:not-allowed}
+
+/* Active — next step to do */
+.intBtn.active-step{
+  border-color:rgba(56,189,248,.5);
+  background:rgba(56,189,248,.07);
+  color:var(--c-blue);
+  box-shadow:0 0 0 2px rgba(56,189,248,.15),0 8px 20px rgba(14,165,233,.15);
+}
+.intBtn.active-step::after{background:var(--c-blue)}
+
+/* Done */
+.intBtn.done{
+  border-color:rgba(16,185,129,.4);
+  background:rgba(16,185,129,.07);
+  color:var(--c-green);
+}
+.intBtn.done::after{background:var(--c-green)}
+.intBtn.done .intIcon{filter:grayscale(0);opacity:.8}
+
+.stepBadge{
+  font-size:9px;font-weight:700;padding:2px 7px;
+  border-radius:999px;letter-spacing:.4px;text-transform:uppercase;
+  background:rgba(255,255,255,.07);color:var(--c-text-3);
+  transition:background .18s,color .18s;
+}
+.intBtn.active-step .stepBadge{background:rgba(56,189,248,.15);color:var(--c-blue)}
+.intBtn.done .stepBadge{background:rgba(16,185,129,.15);color:var(--c-green)}
+
+/* ═══════════════════════════════════════════
+   VITALS PANEL — clinical data style
+═══════════════════════════════════════════ */
+#vitalsPanel{width:min(720px,96vw)}
+#vitalsPanel .vHeader{margin-bottom:16px}
+#vitalsPanel .vHeader h3{
+  font-family:var(--f-display);font-size:19px;font-weight:800;color:var(--c-text);
+}
+#vitalsPanel .vHeader p{color:var(--c-text-2);font-size:13px;margin-top:3px}
+
+.vitalsGrid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:8px;margin-bottom:16px;
+}
+.vitalChip{
+  border:1px solid var(--c-border-hi);border-radius:var(--r-md);
+  padding:14px 12px;cursor:pointer;transition:all .2s;
+  background:rgba(255,255,255,.03);
+  display:flex;flex-direction:column;gap:3px;position:relative;
+}
+.vitalChip:hover:not(.equipment-locked){
+  background:rgba(56,189,248,.06);border-color:rgba(56,189,248,.35);
+}
+.vitalChip .vIcon{font-size:18px;line-height:1;margin-bottom:2px}
+.vitalChip .vName{
+  font-size:12px;font-weight:700;color:var(--c-text);
+  line-height:1.2;
+}
+.vitalChip .vVal{
+  font-size:12px;color:var(--c-text-3);
+  font-family:var(--f-mono);margin-top:4px;
+}
+.vitalChip .vReq{
+  position:absolute;top:8px;right:8px;
+  font-size:9px;font-weight:700;color:#f87171;
+  background:rgba(239,68,68,.12);padding:2px 6px;
+  border-radius:999px;letter-spacing:.3px;
+}
+
+/* Checked state */
+.vitalChip.checked{
+  background:rgba(16,185,129,.07);
+  border-color:rgba(16,185,129,.4);
+}
+.vitalChip.checked .vVal{color:var(--c-green);font-weight:700}
+
+/* Abnormal reading */
+.vitalChip.abnormal{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.06)}
+.vitalChip.abnormal .vVal{color:#fbbf24}
+.vitalChip.critical-val .vVal{color:#f87171;font-weight:700}
+.vitalChip.abnormal{border-color:rgba(239,68,68,.45)!important}
+
+/* Locked */
+.vitalChip.equipment-locked{opacity:.35;cursor:not-allowed}
+.equipLockTag{
+  font-size:10px;color:var(--c-amber);font-weight:600;
+  margin-top:2px;display:flex;align-items:center;gap:3px;
+}
+
+/* Measuring pulse */
+@keyframes vitalPulse{
+  0%  {transform:scale(1)}
+  50% {transform:scale(1.04);border-color:rgba(56,189,248,.6)}
+  100%{transform:scale(1)}
+}
+.vitalChip.checking{animation:vitalPulse .55s ease}
+
+.vitalsActions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+
+/* ═══════════════════════════════════════════
+   MEDICATION PANEL — action-focused
+═══════════════════════════════════════════ */
+#medicationPanel{
+  width:min(420px,96vw);text-align:center;
+  background:linear-gradient(155deg,var(--c-surface2),var(--c-surface));
+}
+#medAnim{
+  font-size:52px;display:block;margin-bottom:14px;
+  filter:drop-shadow(0 8px 16px rgba(16,185,129,.3));
+  min-height:60px;
+}
+#medicationPanel h3{
+  font-family:var(--f-display);font-size:20px;font-weight:800;
+  color:var(--c-text);margin-bottom:8px;
+}
+#medicationPanel p{
+  color:var(--c-text-2);font-size:14px;margin-bottom:22px;line-height:1.6;
+}
+#medBtn{
+  width:100%;padding:15px;font-size:16px;font-weight:700;
+  border:0;border-radius:var(--r-md);cursor:pointer;
+  font-family:var(--f-body);
+  background:linear-gradient(135deg,var(--c-green),#059669);
+  color:#fff;
+  box-shadow:0 12px 28px rgba(16,185,129,.35);
+  transition:all .18s;letter-spacing:-.1px;
+}
+#medBtn:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(16,185,129,.45)}
+#medBtn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ═══════════════════════════════════════════
+   CARE PANEL — human / warm
+═══════════════════════════════════════════ */
+#carePanel{width:min(600px,96vw)}
+#carePanel h3{
+  font-family:var(--f-display);font-size:19px;font-weight:800;
+  color:var(--c-text);margin-bottom:4px;
+}
+#carePanel>p{color:var(--c-text-2);font-size:13px;margin-bottom:14px}
+.careList{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.careItem{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 14px;border:1px solid var(--c-border-hi);
+  border-radius:var(--r-md);background:rgba(255,255,255,.03);
+  cursor:pointer;transition:all .15s;
+}
+.careItem:hover{background:rgba(56,189,248,.05);border-color:rgba(56,189,248,.25)}
+.careItem.checked{
+  background:rgba(16,185,129,.07);
+  border-color:rgba(16,185,129,.35);
+}
+.careItem.required-flag{
+  border-color:rgba(239,68,68,.4);
+  background:rgba(239,68,68,.06);
+}
+.careCheck{
+  width:20px;height:20px;border-radius:6px;
+  border:1.5px solid rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;flex-shrink:0;transition:all .15s;
+  color:transparent;
+}
+.careItem.checked .careCheck{
+  background:var(--c-green);border-color:var(--c-green);color:#fff;
+}
+.careItem .careLabel{font-size:13px;font-weight:600;color:var(--c-text-2);flex:1}
+.careItem.checked .careLabel{color:var(--c-text)}
+.careItem .careTag{
+  font-size:10px;padding:2px 8px;border-radius:999px;
+  background:rgba(245,158,11,.12);color:#fbbf24;font-weight:700;
+  letter-spacing:.3px;text-transform:uppercase;
+}
+.careActions{display:flex;gap:8px;justify-content:flex-end}
+
+/* ═══════════════════════════════════════════
+   NANDA DIAGNOSIS BUILDER (replaces quiz)
+═══════════════════════════════════════════ */
+#quizPanel{width:min(860px,96vw)}
+.nandaBuilder{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.nandaPart{
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--c-border-hi);
+  border-radius:var(--r-md);padding:14px;
+}
+.nandaPart.selected-correct{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.04)}
+.nandaPart.selected-wrong{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04)}
+.nandaPartHeader{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.nandaTag{
+  display:inline-flex;width:24px;height:24px;border-radius:7px;
+  align-items:center;justify-content:center;
+  font-size:13px;font-weight:900;color:#fff;flex-shrink:0;
+}
+.nandaPartTitle{font-size:13px;font-weight:800;color:var(--c-text)}
+.nandaPartHint{font-size:11px;color:var(--c-text-3);flex:1}
+.nandaOpts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nandaOpt{
+  border:1px solid var(--c-border);border-radius:var(--r-sm);
+  padding:10px 12px;cursor:pointer;transition:all .14s;
+  font-size:12px;font-family:var(--f-body);color:var(--c-text-2);
+  text-align:left;line-height:1.4;background:rgba(255,255,255,.03);
+}
+.nandaOpt:hover{background:rgba(56,189,248,.07);border-color:rgba(56,189,248,.3);color:var(--c-text)}
+.nandaOpt.selected{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.5);color:var(--c-text);font-weight:700}
+
+/* Evidence checkboxes */
+.nandaEvidencePart{}
+.nandaEvidenceList{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.nandaEvItem{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:8px 10px;border-radius:var(--r-sm);
+  border:1px solid var(--c-border);background:rgba(255,255,255,.03);
+  cursor:pointer;transition:all .14s;font-size:12px;color:var(--c-text-2);line-height:1.4;
+}
+.nandaEvItem:hover{background:rgba(56,189,248,.06);border-color:rgba(56,189,248,.25)}
+.nandaEvItem.checked{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.4);color:var(--c-text)}
+.nandaEvItem.missed{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.25);opacity:.6;cursor:not-allowed}
+.nandaEvCheck{
+  width:16px;height:16px;border-radius:4px;
+  border:1.5px solid rgba(255,255,255,.2);
+  flex-shrink:0;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:transparent;transition:all .14s;
+}
+.nandaEvItem.checked .nandaEvCheck{background:var(--c-green);border-color:var(--c-green);color:#fff}
+.nandaEvItem.missed .nandaEvCheck{background:rgba(239,68,68,.3);border-color:#ef4444}
+.nandaEvidenceMiss{font-size:11px;color:#fca5a5;margin-top:8px}
+
+/* Live PES preview */
+.nandaPreview{
+  background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);
+  border-radius:var(--r-sm);padding:10px 14px;
+  font-size:13px;color:var(--c-text-2);line-height:1.6;margin-bottom:10px;
+}
+.nandaPreviewLabel{font-weight:800;color:var(--c-blue);margin-right:6px}
+.nandaActions{display:flex;gap:10px;justify-content:flex-end}
+
+/* ═══════════════════════════════════════════
+   DOCUMENTATION PANEL — clinical form
+═══════════════════════════════════════════ */
+#docPanel{width:min(740px,96vw)}
+#docPanel h3{
+  font-family:var(--f-display);font-size:19px;font-weight:800;
+  color:var(--c-text);margin-bottom:4px;
+}
+#docPanel .docSub{color:var(--c-text-2);font-size:13px;margin-bottom:14px}
+
+.docNote{
+  font-size:12px;color:#fbbf24;
+  background:rgba(245,158,11,.08);
+  border:1px solid rgba(245,158,11,.2);
+  border-radius:var(--r-sm);padding:10px 13px;
+  margin-bottom:12px;display:none;
+  display:flex;align-items:center;gap:8px;
+}
+
+.docSections{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.docSection{
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--c-border);border-radius:var(--r-md);padding:14px;
+}
+.docSection h4{
+  font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--c-text-3);margin-bottom:10px;
+}
+.docRow{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;
+}
+.docRow:last-child{border-bottom:none}
+.docRow .dLabel{color:var(--c-text-2)}
+.docRow .dVal{font-weight:700;font-family:var(--f-mono);font-size:11px}
+.dVal.ok{color:var(--c-green)}
+.dVal.warn{color:#f87171}
+.dVal.missed{
+  color:#ef4444;font-size:10px;
+  background:rgba(239,68,68,.1);
+  padding:2px 7px;border-radius:999px;
+}
+.docActions{display:flex;gap:8px;justify-content:flex-end}
+
+/* ═══════════════════════════════════════════
+   FEEDBACK — mentor moment
+═══════════════════════════════════════════ */
+.mentorRow{display:flex;gap:14px;align-items:center}
+.mentorAvatar{
+  width:48px;height:48px;border-radius:14px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--c-blue),var(--c-indigo));
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;line-height:1;
+  box-shadow:0 8px 20px rgba(99,102,241,.3);
+  overflow:hidden;
+}
+.mentorAvatar span{
+  display:block;
+  transform:translateY(1px); /* nudge emoji baseline down slightly */
+}
+.mentorInfo{flex:1;min-width:0}
+.mentorRow h3{
+  font-size:13px;font-weight:700;color:var(--c-blue);
+  margin-bottom:5px;letter-spacing:.1px;
+}
+#feedbackText{color:var(--c-text-2);font-size:13px;line-height:1.6}
+
+/* ═══════════════════════════════════════════
+   END PANEL
+═══════════════════════════════════════════ */
+.statsGrid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:10px;margin:20px 0;
+}
+.statBox{
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--c-border);border-radius:var(--r-md);padding:14px;
+}
+.statBox span{color:var(--c-text-3);font-size:11px;display:block;margin-bottom:4px}
+.statBox strong{
+  display:block;font-size:22px;font-weight:700;
+  color:var(--c-text);font-family:var(--f-mono);
+}
+.endActions{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px;
+}
+
+/* ═══════════════════════════════════════════
+   SBAR HANDOVER PANEL
+═══════════════════════════════════════════ */
+#sbarPanel{
+  bottom:16px;width:min(820px,96vw);
+  background:var(--c-surface);border:1px solid var(--c-border-hi);
+  border-radius:var(--r-xl);padding:22px 24px;
+  box-shadow:var(--shadow-panel);
+  animation:sheetUp .22s cubic-bezier(.34,1.4,.64,1);
+}
+#sbarPanel h3{font-family:var(--f-display);font-size:19px;font-weight:800;color:var(--c-text);margin-bottom:4px}
+#sbarPanel .sbarSub{color:var(--c-text-2);font-size:13px;margin-bottom:14px}
+.sbarSections{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.sbarSection{background:rgba(255,255,255,.03);border:1px solid var(--c-border-hi);border-radius:var(--r-md);padding:12px}
+.sbarSection.incomplete{border-color:rgba(239,68,68,.4)}
+.sbarSection h4{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sbarLetter{display:inline-flex;width:20px;height:20px;border-radius:5px;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0}
+.sbarOptions{display:flex;flex-direction:column;gap:5px}
+.sbarOpt{
+  display:flex;align-items:flex-start;gap:8px;padding:7px 10px;
+  border-radius:var(--r-sm);border:1px solid var(--c-border);
+  background:rgba(255,255,255,.03);cursor:pointer;transition:all .14s;
+  font-size:12px;font-family:var(--f-body);color:var(--c-text-2);
+  text-align:left;line-height:1.4;
+}
+.sbarOpt:hover{background:rgba(56,189,248,.07);border-color:rgba(56,189,248,.3);color:var(--c-text)}
+.sbarOpt.selected{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.5);color:var(--c-text)}
+.sbarOpt.selected .sbarCheck{background:var(--c-blue);border-color:var(--c-blue);color:#fff}
+.sbarCheck{width:15px;height:15px;border-radius:4px;border:1.5px solid rgba(255,255,255,.2);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .14s;color:transparent}
+.sbarPreview{background:rgba(255,255,255,.03);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--c-text-2);line-height:1.7;min-height:44px;font-family:var(--f-mono);display:none}
+.sbarActions{display:flex;gap:10px;justify-content:flex-end}
+.sbarMissNote{font-size:11px;color:#fca5a5;margin-top:5px;display:none}
+
+/* ═══════════════════════════════════════════
+   DEBRIEF PANEL
+═══════════════════════════════════════════ */
+#debriefPanel{
+  max-height:88vh;overflow-y:auto;text-align:left;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent;
+}
+#debriefPanel h2{
+  font-family:var(--f-display);font-size:24px;font-weight:800;
+  color:var(--c-text);margin-bottom:4px;
+}
+#debriefPanel .debriefSub{color:var(--c-text-2);font-size:13px;margin-bottom:18px}
+
+.debriefSummaryBar{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:8px;margin-bottom:18px;
+}
+.debriefSummaryBar > div:first-child{grid-column:1/-1;}
+.dSumBox{
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--c-border);border-radius:var(--r-md);
+  padding:12px;text-align:center;
+}
+.dSumBox span{font-size:10px;color:var(--c-text-3);display:block;margin-bottom:4px;letter-spacing:.4px;text-transform:uppercase}
+.dSumBox strong{font-size:20px;font-weight:700;font-family:var(--f-mono);color:var(--c-text)}
+
+.debriefCard{
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-lg);padding:16px;margin-bottom:10px;
+}
+.debriefCard.perfect{border-color:rgba(16,185,129,.25);background:rgba(16,185,129,.04)}
+.debriefCard.issues{border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.04)}
+.debriefCard.critical-miss{border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.04)}
+
+.debriefHeader{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+}
+.debriefHeader h4{
+  font-family:var(--f-display);font-size:14px;font-weight:800;color:var(--c-text);
+}
+.debriefBadge{
+  font-size:10px;font-weight:700;padding:3px 9px;
+  border-radius:999px;letter-spacing:.3px;text-transform:uppercase;
+}
+.debriefBadge.good{background:rgba(16,185,129,.15);color:#34d399}
+.debriefBadge.warn{background:rgba(245,158,11,.15);color:#fbbf24}
+.debriefBadge.bad{background:rgba(239,68,68,.15);color:#f87171}
+.debriefBadge.skip{background:rgba(71,85,105,.2);color:#94a3b8}
+
+.debriefRows{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.debriefRow{
+  display:flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--c-text-2);padding:3px 0;
+}
+.debriefRow.miss{color:#fca5a5}
+.debriefRow.ok{color:#6ee7b7}
+.debriefNote{
+  margin-top:10px;font-size:12px;color:var(--c-text-2);
+  background:rgba(56,189,248,.05);
+  border-left:2px solid rgba(56,189,248,.4);
+  padding:8px 12px;border-radius:0 var(--r-sm) var(--r-sm) 0;line-height:1.55;
+}
+
+/* ═══════════════════════════════════════════
+   TOASTS + OVERLAYS
+═══════════════════════════════════════════ */
+@keyframes toastIn{
+  from{opacity:0;transform:translateX(-50%) translateY(8px)}
+  to  {opacity:1;transform:translateX(-50%) translateY(0)}
+}
+@keyframes slideRight{
+  from{opacity:0;transform:translateX(12px)}
+  to  {opacity:1;transform:translateX(0)}
+}
+
+#exitToast{
+  position:fixed;bottom:76px;left:50%;transform:translateX(-50%);
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);
+  color:#fbbf24;border-radius:var(--r-md);
+  padding:10px 18px;font-size:13px;font-weight:600;
+  z-index:50;display:none;animation:toastIn .22s ease;
+  text-align:center;backdrop-filter:blur(16px);max-width:440px;
+}
+#equipToast{
+  position:fixed;top:62px;right:16px;z-index:25;
+  background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);
+  color:#7dd3fc;border-radius:var(--r-md);
+  padding:10px 16px;font-size:13px;font-weight:600;
+  display:none;animation:slideRight .22s ease;backdrop-filter:blur(16px);
+}
+#deteriorationAlert{
+  position:fixed;top:62px;left:50%;transform:translateX(-50%);
+  background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);
+  color:#fca5a5;border-radius:var(--r-md);
+  padding:10px 18px;font-size:13px;font-weight:700;
+  z-index:25;display:none;animation:toastIn .22s ease;
+  text-align:center;backdrop-filter:blur(16px);pointer-events:none;
+}
+#restIndicator{
+  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);
+  color:#34d399;border-radius:999px;
+  padding:7px 16px;font-size:12px;font-weight:700;
+  display:none;z-index:25;animation:toastIn .18s ease;
+  backdrop-filter:blur(16px);pointer-events:none;
+}
+
+/* Medication particle */
+#medOverlay{
+  position:fixed;inset:0;z-index:60;display:none;
+  pointer-events:none;
+}
+.medParticle{
+  position:absolute;font-size:26px;
+  animation:floatUp 1.2s ease-out forwards;
+}
+@keyframes floatUp{
+  0%  {opacity:1;transform:translateY(0) scale(1)}
+  100%{opacity:0;transform:translateY(-110px) scale(1.3)}
+}
+
+/* Vignette */
+#vignette{
+  position:fixed;inset:0;z-index:18;
+  pointer-events:none;transition:box-shadow .7s;
+}
+
+/* Instructions pill */
+#instructions{
+  position:fixed;bottom:14px;right:16px;z-index:15;
+  color:rgba(255,255,255,.5);font-size:12px;font-weight:500;
+  background:rgba(6,13,26,.75);
+  border:1px solid var(--c-border-hi);
+  backdrop-filter:blur(12px);
+  padding:7px 13px;border-radius:999px;display:none;
+  letter-spacing:.1px;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media(max-width:760px){
+  .levelGrid,.interactionBtns{grid-template-columns:repeat(2,1fr)}
+  .vitalsGrid,.docSections,.answers{grid-template-columns:1fr 1fr}
+  .statsGrid,.debriefSummaryBar{grid-template-columns:1fr 1fr}
+  #hud{flex-wrap:wrap;gap:8px;height:auto;padding:10px 16px}
+  #progressOuter{display:none}
+  .debriefRows{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud" style="display:none;flex-direction:row;">
+  <div class="brand"><span class="cross">✚</span><span id="shiftNameHud">ShiftCare</span></div>
+  <div id="progressOuter"><div id="progressInner"></div></div>
+  <div class="hudPill" id="scoreHud"><span class="pLabel">Score</span><span id="scoreVal">0</span></div>
+  <div class="hudPill" id="patientsHud"><span class="pLabel">Patients</span><span id="patientsVal">0/0</span></div>
+  <div class="hudPill" id="timerHud"><span class="pLabel">Time</span><span id="timerVal">03:00</span></div>
+  <div id="staminaWrap" title="Stamina — rest at the nurses' station to recover">
+    <div class="sLabel">Stamina</div>
+    <div id="staminaOuter"><div id="staminaInner"></div></div>
+  </div>
+</div>
+
+<div id="gameWrap"><canvas id="game" width="1120" height="700"></canvas></div>
+
+<!-- MENU -->
+<div id="menuPanel" class="panel">
+  <div class="logoMark">✚</div>
+  <h1 class="gameTitle">ShiftCare</h1>
+  <p class="subtitle">A 2D nurse triage simulator. Assess patients, deliver care, and complete documentation every shift.</p>
+  <div class="menuActions">
+    <button class="primaryBtn" onclick="showLevelSelect()">▶ Start Shift</button>
+    <button class="secondaryBtn" onclick="showHowToPlay()">How to Play</button>
+    <button class="secondaryBtn" onclick="resetProgress()">Reset Progress</button>
+  </div>
+</div>
+
+<!-- HOW TO PLAY -->
+<div id="howPanel" class="panel">
+  <h1 style="font-size:36px;font-weight:900;margin-bottom:12px">How to Play</h1>
+  <p class="subtitle">Move with <strong style="color:#38bdf8">WASD</strong> or <strong style="color:#38bdf8">Arrow Keys</strong>. Walk into a patient to open the interaction menu.</p>
+  <p class="subtitle" style="margin-top:-10px">Follow the care workflow: <strong style="color:#38bdf8">Vitals → Nursing Diagnosis → Medication → Care → SBAR* → Documentation → Exit</strong></p>
+  <p class="subtitle" style="margin-top:-10px"><em style="color:#64748b;font-size:13px">*SBAR escalation required for Red and Yellow patients only</em></p>
+  <p class="subtitle" style="margin-top:-10px"><strong style="color:#ef4444">Red</strong> = Critical · <strong style="color:#f59e0b">Yellow</strong> = Urgent · <strong style="color:#22c55e">Green</strong> = Low Priority</p>
+  <button class="primaryBtn" style="max-width:200px;margin:0 auto" onclick="showMenu()">← Back</button>
+</div>
+
+<!-- LEVEL SELECT -->
+<div id="levelPanel" class="panel">
+  <h1 style="font-size:36px;font-weight:900;margin-bottom:6px">Select Shift</h1>
+  <p class="subtitle" style="margin-bottom:0">Complete shifts to unlock harder missions.</p>
+  <div class="levelGrid" id="levelGrid"></div>
+  <div class="endActions" style="margin-top:18px">
+    <button class="secondaryBtn" onclick="showMenu()">← Back</button>
+  </div>
+</div>
+
+<!-- INTERACTION MENU -->
+<div id="interactionPanel" class="panel">
+  <div class="iHeader">
+    <div>
+      <h3 id="interactTitle">Patient Interaction</h3>
+      <p id="interactSub">Select an action to begin care.</p>
+    </div>
+  </div>
+  <div class="interactionBtns">
+    <button class="intBtn" id="btnVitals" onclick="openVitals()">
+      <span class="intIcon">📋</span>
+      <span class="intLabel">Check Vitals</span>
+      <span class="stepBadge">Step 1</span>
+    </button>
+    <button class="intBtn" id="btnNANDA" onclick="openSBAR_guard_NANDA()" disabled>
+      <span class="intIcon">🩺</span>
+      <span class="intLabel">Nursing Diagnosis</span>
+      <span class="stepBadge">Step 2</span>
+    </button>
+    <button class="intBtn" id="btnMed" onclick="openMedication()" disabled>
+      <span class="intIcon">💊</span>
+      <span class="intLabel">Medication</span>
+      <span class="stepBadge">Step 3</span>
+    </button>
+    <button class="intBtn" id="btnCare" onclick="openCare()" disabled>
+      <span class="intIcon">🤝</span>
+      <span class="intLabel">Patient Care</span>
+      <span class="stepBadge">Step 4</span>
+    </button>
+    <button class="intBtn" id="btnSBAR" onclick="openSBAR()" disabled>
+      <span class="intIcon">📢</span>
+      <span class="intLabel">Escalate / SBAR</span>
+      <span class="stepBadge">Step 5</span>
+    </button>
+    <button class="intBtn" id="btnDoc" onclick="openDocumentation()" disabled>
+      <span class="intIcon">📝</span>
+      <span class="intLabel">Documentation</span>
+      <span class="stepBadge">Step 6</span>
+    </button>
+    <button class="intBtn" id="btnStepAway" onclick="stepAway()" style="border-color:rgba(245,158,11,.3);color:#f59e0b">
+      <span class="intIcon">↩</span>
+      <span class="intLabel">Step Away</span>
+      <span class="stepBadge" style="background:rgba(245,158,11,.12);color:#f59e0b">Resume later</span>
+    </button>
+    <button class="intBtn" id="btnExit" onclick="tryExitRoom()">
+      <span class="intIcon">🚪</span>
+      <span class="intLabel">Leave Room</span>
+      <span class="stepBadge">Exit</span>
+    </button>
+  </div>
+</div>
+
+<!-- VITALS PANEL -->
+<div id="vitalsPanel" class="panel">
+  <div class="vHeader">
+    <h3>Vital Signs Assessment</h3>
+    <p>Select each vital to record. Required vitals are marked. Collect equipment from the ward first.</p>
+  </div>
+  <div class="vitalsGrid" id="vitalsGrid"></div>
+  <div class="vitalsActions">
+    <button class="secondaryBtn" style="padding:10px 18px;font-size:14px" onclick="closeVitals()">← Back</button>
+    <button class="primaryBtn" style="padding:10px 22px;font-size:14px" onclick="confirmVitals()">Confirm & Continue →</button>
+  </div>
+</div>
+
+<!-- MEDICATION PANEL -->
+<div id="medicationPanel" class="panel">
+  <span id="medAnim">💊</span>
+  <h3>Administer Medication</h3>
+  <p id="medDesc">Prepare and administer the prescribed medication to the patient.</p>
+  <button id="medBtn" onclick="giveMedication()">💉 Administer Now</button>
+  <br><br>
+  <button class="secondaryBtn" style="padding:10px 18px;font-size:14px;width:100%" onclick="closeMedication()">← Back</button>
+</div>
+
+<!-- CARE PANEL -->
+<div id="carePanel" class="panel">
+  <h3>Patient Care & Support</h3>
+  <p>Complete the required care obligations for this patient before handover.</p>
+  <div class="careList" id="careList"></div>
+  <div class="careActions">
+    <button class="secondaryBtn" style="padding:10px 18px;font-size:14px" onclick="closeCare()">← Back</button>
+    <button class="primaryBtn" style="padding:10px 22px;font-size:14px" onclick="confirmCare()">Confirm Care →</button>
+  </div>
+</div>
+
+<!-- NANDA NURSING DIAGNOSIS PANEL -->
+<div id="quizPanel" class="panel">
+  <div class="quizHeader">
+    <div>
+      <h2 id="patientTitle">Nursing Diagnosis</h2>
+      <div class="quizSmall">Construct the nursing diagnosis using the three-part PES format: Problem · Etiology · Signs & Evidence</div>
+    </div>
+    <div id="urgencyBadge">LOW PRIORITY</div>
+  </div>
+  <div id="symptomsText"></div>
+  <div id="quizVitalsContext" style="display:none;background:rgba(255,255,255,.05);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+
+  <!-- NANDA three-part builder -->
+  <div class="nandaBuilder">
+
+    <!-- P: Problem / Diagnosis Label -->
+    <div class="nandaPart" id="nandaPartP">
+      <div class="nandaPartHeader">
+        <span class="nandaTag" style="background:#6366f1">P</span>
+        <span class="nandaPartTitle">Nursing Diagnosis Label</span>
+        <span class="nandaPartHint">Select the NANDA diagnosis that best describes this patient's health problem</span>
+      </div>
+      <div class="nandaOpts" id="nandaOptsP"></div>
+    </div>
+
+    <!-- E: Etiology / Related To -->
+    <div class="nandaPart" id="nandaPartE">
+      <div class="nandaPartHeader">
+        <span class="nandaTag" style="background:#f59e0b">E</span>
+        <span class="nandaPartTitle">Related To (Aetiology)</span>
+        <span class="nandaPartHint">Select the most likely cause or contributing factor</span>
+      </div>
+      <div class="nandaOpts" id="nandaOptsE"></div>
+    </div>
+
+    <!-- S: Signs & Symptoms / As Evidenced By -->
+    <div class="nandaPart nandaEvidencePart" id="nandaPartS">
+      <div class="nandaPartHeader">
+        <span class="nandaTag" style="background:#10b981">S</span>
+        <span class="nandaPartTitle">As Evidenced By</span>
+        <span class="nandaPartHint">Tick all clinical findings that support your diagnosis</span>
+      </div>
+      <div class="nandaEvidenceList" id="nandaEvidenceList"></div>
+      <div class="nandaEvidenceMiss" id="nandaEvidenceMiss" style="display:none">
+        ⚠ Some key supporting evidence was not recorded because required vitals were not taken.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Live PES statement preview -->
+  <div class="nandaPreview" id="nandaPreview" style="display:none">
+    <span class="nandaPreviewLabel">Nursing Diagnosis:</span>
+    <span id="nandaPreviewText"></span>
+  </div>
+
+  <div class="nandaActions">
+    <button class="secondaryBtn" style="padding:10px 18px;font-size:14px" onclick="closeNANDA()">← Back</button>
+    <button class="primaryBtn" style="padding:10px 22px;font-size:14px" id="nandaSubmitBtn" onclick="submitNANDA()">Confirm Diagnosis →</button>
+  </div>
+</div>
+
+<!-- DOCUMENTATION PANEL -->
+<div id="docPanel" class="panel">
+  <h3>Clinical Documentation</h3>
+  <p class="docSub">Review and sign off the patient record before leaving the room.</p>
+  <div id="docWarning" class="docNote">⚠ Some required vital signs were not assessed. Highlighted fields require follow-up documentation.</div>
+  <div class="docSections" id="docSections"></div>
+  <div class="docActions">
+    <button class="secondaryBtn" style="padding:10px 18px;font-size:14px" onclick="closeDoc()">← Back</button>
+    <button class="primaryBtn" style="padding:10px 22px;font-size:14px" id="docSignBtn" onclick="signOffDoc()">Sign Off & Complete ✓</button>
+  </div>
+</div>
+
+<!-- SBAR HANDOVER -->
+<div id="sbarPanel" class="panel" style="display:none">
+  <h3>SBAR Clinical Handover</h3>
+  <p class="sbarSub">Complete the handover before documentation. Select the most appropriate statement for each section.</p>
+  <div class="sbarPreview" id="sbarPreview"></div>
+  <div class="sbarSections" id="sbarSections"></div>
+  <div class="sbarActions">
+    <button class="secondaryBtn" style="padding:10px 18px;font-size:14px" onclick="closeSBAR()">← Back</button>
+    <button class="primaryBtn" style="padding:10px 22px;font-size:14px" id="sbarSubmitBtn" onclick="submitSBAR()">Submit Handover →</button>
+  </div>
+</div>
+
+<!-- FEEDBACK -->
+<div id="feedbackPanel" class="panel">
+  <div class="mentorRow">
+    <div class="mentorAvatar"><span>👩‍⚕️</span></div>
+    <div class="mentorInfo">
+      <h3>Senior Nurse Maya</h3>
+      <p id="feedbackText"></p>
+    </div>
+  </div>
+</div>
+
+<!-- END PANEL -->
+<div id="endPanel" class="panel">
+  <h1 id="endTitle" style="font-size:38px;font-weight:900;margin-bottom:8px">Shift Complete</h1>
+  <p class="subtitle" id="endMessage"></p>
+  <div class="statsGrid">
+    <div class="statBox"><span>Patients</span><strong id="statPatients">0/0</strong></div>
+    <div class="statBox"><span>Accuracy</span><strong id="statAccuracy">0%</strong></div>
+    <div class="statBox"><span>Score</span><strong id="statScore">0</strong></div>
+    <div class="statBox"><span>Rating</span><strong id="statRating">—</strong></div>
+  </div>
+  <div class="endActions">
+    <button class="primaryBtn" id="nextShiftBtn" onclick="nextShift()" style="display:none">Next Shift →</button>
+    <button class="secondaryBtn" onclick="retryShift()">↺ Retry</button>
+    <button class="secondaryBtn" onclick="showMenu()">Menu</button>
+  </div>
+</div>
+
+<!-- EXIT BLOCKED TOAST -->
+<div id="exitToast">⚕ Ensure all care obligations are fulfilled before handover.</div>
+
+<!-- MED OVERLAY -->
+<div id="medOverlay"></div>
+
+<div id="instructions">Move: WASD / Arrow Keys · Walk into a patient to interact</div>
+<div id="vignette"></div>
+<!-- DETERIORATION ALERT -->
+<div id="deteriorationAlert">⚠ A patient's condition is deteriorating — attend immediately.</div>
+<div id="equipToast">🔬 Equipment collected!</div>
+<div id="restIndicator">💚 Resting at station — stamina recovering</div>
+<!-- DEBRIEF PANEL -->
+<div id="debriefPanel" class="panel" style="display:none">
+  <h2>📋 Shift Debrief</h2>
+  <p class="debriefSub">Per-patient breakdown. Review every clinical decision made this shift.</p>
+  <div class="debriefSummaryBar" id="debriefSummary"></div>
+  <div id="debriefCards"></div>
+  <div class="endActions" style="margin-top:4px">
+    <button class="primaryBtn" id="debriefNextBtn" onclick="afterDebrief()" style="display:none">Next Shift →</button>
+    <button class="secondaryBtn" onclick="retryShift()">↺ Retry Shift</button>
+    <button class="secondaryBtn" onclick="showMenu()">Menu</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CANVAS
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('game');
+const ctx    = canvas.getContext('2d');
+
+const panels = ['menuPanel','levelPanel','howPanel','interactionPanel','vitalsPanel',
+                'medicationPanel','carePanel','quizPanel','sbarPanel','docPanel','feedbackPanel','endPanel','debriefPanel'];
+
+const hud          = document.getElementById('hud');
+const instructions = document.getElementById('instructions');
+const shiftNameHud = document.getElementById('shiftNameHud');
+const feedbackPanel= document.getElementById('feedbackPanel');
+const feedbackText = document.getElementById('feedbackText');
+const scoreHud     = document.getElementById('scoreHud');
+const patientsHud  = document.getElementById('patientsHud');
+const timerHud     = document.getElementById('timerHud');
+const progressInner= document.getElementById('progressInner');
+const exitToast    = document.getElementById('exitToast');
+const medOverlay   = document.getElementById('medOverlay');
+
+// ═══════════════════════════════════════════════════════
+// VITALS DEFINITIONS
+// ═══════════════════════════════════════════════════════
+const ALL_VITALS = [
+  {id:'hr',   icon:'❤️',  name:'Heart Rate',        unit:'bpm'},
+  {id:'bp',   icon:'🩸',  name:'Blood Pressure',    unit:'mmHg'},
+  {id:'temp', icon:'🌡️', name:'Temperature',        unit:'°C'},
+  {id:'spo2', icon:'💨',  name:'SpO₂',              unit:'%'},
+  {id:'rr',   icon:'🫁',  name:'Respiratory Rate',  unit:'br/min'},
+  {id:'bgl',  icon:'🍬',  name:'Blood Glucose',     unit:'mmol/L'},
+];
+
+// Vital value generator — abnormal readings for urgent/critical patients
+// ═══════════════════════════════════════════════════════
+// VITAL VALUE GENERATOR
+// Ranges based on NHS/NEWS2/BNF clinical reference values
+// ═══════════════════════════════════════════════════════
+function generateVitalValue(id, urgency){
+  const rand = (a,b) => a + Math.random()*(b-a);
+  if(urgency === 'red'){
+    // Critically abnormal values — NEWS2 high score range
+    const vals = {
+      hr:   () => Math.round(rand(115,145)) + ' bpm',        // tachycardia (>111 = NEWS2 score 3)
+      bp:   () => Math.round(rand(160,200))+'/'+ Math.round(rand(100,120)) + ' mmHg', // stage 2–3 hypertension or crisis
+      temp: () => rand(39.1,40.5).toFixed(1) + ' °C',        // high fever / hyperpyrexia
+      spo2: () => Math.round(rand(83,91)) + ' %',             // severe hypoxia (<92% = NEWS2 score 3)
+      rr:   () => Math.round(rand(25,35)) + ' br/min',        // severe tachypnoea (>24 = NEWS2 score 3)
+      bgl:  () => rand(1.8,3.2).toFixed(1) + ' mmol/L',      // severe hypoglycaemia (<3.5 mmol/L)
+    };
+    return vals[id]();
+  } else if(urgency === 'yellow'){
+    // Abnormal but not immediately life-threatening — NEWS2 medium score
+    const vals = {
+      hr:   () => Math.round(rand(101,114)) + ' bpm',         // tachycardia (91–110 = NEWS2 score 1–2)
+      bp:   () => Math.round(rand(141,159))+'/'+ Math.round(rand(91,99)) + ' mmHg', // stage 1–2 hypertension
+      temp: () => rand(37.9,39.0).toFixed(1) + ' °C',         // fever (38.1–39.0 = NEWS2 score 1)
+      spo2: () => Math.round(rand(92,94)) + ' %',              // mild hypoxia (93–94% = NEWS2 score 1)
+      rr:   () => Math.round(rand(21,24)) + ' br/min',         // tachypnoea (21–24 = NEWS2 score 2)
+      bgl:  () => rand(3.3,3.9).toFixed(1) + ' mmol/L',       // mild hypoglycaemia (3.3–3.9 mmol/L)
+    };
+    return vals[id]();
+  } else {
+    // Normal adult resting values
+    const vals = {
+      hr:   () => Math.round(rand(60,99)) + ' bpm',           // normal: 60–100 bpm
+      bp:   () => Math.round(rand(110,129))+'/'+ Math.round(rand(70,84)) + ' mmHg', // normal: <130/85 mmHg
+      temp: () => rand(36.1,37.5).toFixed(1) + ' °C',         // normal: 36.1–37.5°C (NHS)
+      spo2: () => Math.round(rand(96,100)) + ' %',             // normal: ≥95% at rest
+      rr:   () => Math.round(rand(12,20)) + ' br/min',         // normal: 12–20 br/min
+      bgl:  () => rand(4.0,7.8).toFixed(1) + ' mmol/L',       // normal fasting: 4.0–5.9 / post-meal: up to 7.8
+    };
+    return vals[id]();
+  }
+}
+
+function isVitalAbnormal(id, value, urgency){
+  if(urgency === 'green') return false;
+  const num = parseFloat(value);
+  const sys = id==='bp' ? parseFloat(value.split('/')[0]) : num;
+  // NEWS2-based thresholds
+  const thresholds = {
+    hr:   v => v > 100 || v < 50,
+    bp:   v => v > 140 || v < 90,   // systolic
+    temp: v => v > 37.8 || v < 36.0,
+    spo2: v => v < 95,
+    rr:   v => v > 20 || v < 12,
+    bgl:  v => v < 4.0 || v > 10.0,
+  };
+  const fn = thresholds[id];
+  if(!fn) return false;
+  return fn(id==='bp' ? sys : num);
+}
+
+function isVitalCritical(id, value){
+  const num = parseFloat(value);
+  const sys = id==='bp' ? parseFloat(value.split('/')[0]) : num;
+  // NEWS2 score 3 thresholds
+  const crits = {
+    hr:   v => v > 111 || v < 40,
+    bp:   v => v < 90 || v > 180,
+    temp: v => v > 39.1 || v < 35.0,
+    spo2: v => v < 92,
+    rr:   v => v > 24 || v < 8,
+    bgl:  v => v < 3.0 || v > 15.0,
+  };
+  const fn = crits[id];
+  if(!fn) return false;
+  return fn(id==='bp' ? sys : num);
+}
+
+// ═══════════════════════════════════════════════════════
+// VITAL INTERPRETATION ENGINE
+// Thresholds aligned with NEWS2, NICE, NHS clinical guidelines
+// ═══════════════════════════════════════════════════════
+function interpretVital(id, val){
+  const n   = parseFloat(val);
+  const sys = id==='bp' ? parseFloat(val.split('/')[0]) : n;
+  const dia = id==='bp' ? parseFloat(val.split('/')[1]) : 0;
+
+  const maps = {
+    hr:
+      n > 130 ? {flag:'critical', label:'Severe Tachycardia',  tip:'HR >130 bpm — high risk of haemodynamic compromise. Urgent cardiac review required. (NEWS2 score 3)'}
+    : n > 110 ? {flag:'critical', label:'Tachycardia',          tip:'HR >110 bpm — possible cardiac arrhythmia, severe infection or hypovolaemia. (NEWS2 score 3)'}
+    : n > 100 ? {flag:'warning',  label:'Mild Tachycardia',     tip:'HR >100 bpm — may indicate pain, anxiety, fever, dehydration or early compromise. (NEWS2 score 1)'}
+    : n <  40 ? {flag:'critical', label:'Severe Bradycardia',   tip:'HR <40 bpm — risk of cardiac arrest. Immediate review required. (NEWS2 score 3)'}
+    : n <  51 ? {flag:'warning',  label:'Bradycardia',          tip:'HR <51 bpm — monitor for dizziness, syncope or conduction abnormality. (NEWS2 score 1)'}
+    :           {flag:'normal',   label:'Normal',               tip:'Heart rate within normal adult range (60–100 bpm).'},
+
+    bp:
+      sys > 180 ? {flag:'critical', label:'Hypertensive Crisis',    tip:'Systolic >180 mmHg — hypertensive crisis. Risk of stroke, encephalopathy or end-organ damage. Urgent treatment needed.'}
+    : sys > 159 ? {flag:'warning',  label:'Stage 2 Hypertension',   tip:'Systolic 160–179 mmHg — significant elevation. Requires prompt clinical review and monitoring.'}
+    : sys > 140 ? {flag:'warning',  label:'Stage 1 Hypertension',   tip:'Systolic 141–159 mmHg — elevated. Document and monitor; refer if sustained. (NICE NG136)'}
+    : sys <  90 ? {flag:'critical', label:'Hypotension',             tip:'Systolic <90 mmHg — NEWS2 score 3. May indicate shock, sepsis or significant blood loss.'}
+    : sys < 101 ? {flag:'warning',  label:'Low-Normal BP',           tip:'Systolic 90–100 mmHg — borderline. Monitor for dizziness, syncope or signs of poor perfusion.'}
+    :             {flag:'normal',   label:'Normal',                  tip:'Blood pressure within acceptable range (<140/90 mmHg). (NICE NG136)'},
+
+    temp:
+      n > 39.9 ? {flag:'critical', label:'Hyperpyrexia',         tip:'Temperature >40°C — risk of febrile seizure, organ dysfunction and neurological damage. Urgent cooling measures required.'}
+    : n > 38.0 ? {flag:'warning',  label:'Fever (Pyrexia)',       tip:'Temperature >38°C — indicates active infection or inflammatory response. Investigate source. (NHS definition of fever)'}
+    : n > 37.5 ? {flag:'warning',  label:'Low-Grade Fever',      tip:'Temperature 37.5–38°C — subfebrile. May represent early infection or post-operative response. Monitor trend.'}
+    : n < 35.0 ? {flag:'critical', label:'Hypothermia',          tip:'Temperature <35°C — clinically significant hypothermia. Risk of cardiac arrhythmia. Urgent warming required.'}
+    : n < 36.0 ? {flag:'warning',  label:'Low Temperature',      tip:'Temperature 35–36°C — mildly subnormal. Common in sepsis, shock or prolonged exposure.'}
+    :            {flag:'normal',   label:'Afebrile',             tip:'Temperature within normal range (36.0–37.5°C).'},
+
+    spo2:
+      n < 88 ? {flag:'critical', label:'Severe Hypoxia',       tip:'SpO2 <88% — critical oxygen desaturation. Immediate airway management and high-flow oxygen required. (NEWS2 score 3)'}
+    : n < 92 ? {flag:'critical', label:'Significant Hypoxia',  tip:'SpO2 88–91% — clinically significant. Supplemental oxygen essential; investigate respiratory cause urgently.'}
+    : n < 95 ? {flag:'warning',  label:'Mild Hypoxia',         tip:'SpO2 92–94% — below acceptable threshold. Supplemental oxygen likely needed; monitor respiratory effort.'}
+    :          {flag:'normal',   label:'Normal SpO2',          tip:'Oxygen saturation ≥95% — within normal range at rest. (NHS target ≥95% for most patients)'},
+
+    rr:
+      n > 30 ? {flag:'critical', label:'Severe Tachypnoea',    tip:'RR >30 br/min — NEWS2 score 3. Indicates severe respiratory distress or failure. Immediate intervention required.'}
+    : n > 24 ? {flag:'critical', label:'Tachypnoea',           tip:'RR 25–30 br/min — NEWS2 score 2. Significant respiratory compromise. Urgent assessment required.'}
+    : n > 20 ? {flag:'warning',  label:'Elevated RR',          tip:'RR 21–24 br/min — NEWS2 score 2. May indicate early respiratory compromise, pain or metabolic acidosis.'}
+    : n <  8 ? {flag:'critical', label:'Bradypnoea',           tip:'RR <8 br/min — NEWS2 score 3. Risk of respiratory arrest. Possible opioid toxicity or CNS depression.'}
+    : n < 12 ? {flag:'warning',  label:'Low RR',               tip:'RR 8–11 br/min — NEWS2 score 1. Slower than normal; monitor for respiratory depression.'}
+    :          {flag:'normal',   label:'Normal',               tip:'Respiratory rate within normal adult range (12–20 br/min).'},
+
+    bgl:
+      n <  2.8 ? {flag:'critical', label:'Severe Hypoglycaemia',  tip:'BGL <2.8 mmol/L — life-threatening. Risk of seizure, loss of consciousness and cardiac arrhythmia. IV glucose required.'}
+    : n <  3.5 ? {flag:'critical', label:'Hypoglycaemia',         tip:'BGL 2.8–3.4 mmol/L — clinically significant. Administer 15–20g fast-acting carbohydrate immediately. (JBDS guidelines)'}
+    : n <  4.0 ? {flag:'warning',  label:'Low Blood Glucose',     tip:'BGL 3.5–3.9 mmol/L — below safe threshold. Administer oral glucose snack and recheck in 15 minutes.'}
+    : n > 15.0 ? {flag:'critical', label:'Severe Hyperglycaemia', tip:'BGL >15 mmol/L — risk of diabetic ketoacidosis or hyperosmolar state. Urgent clinical review required.'}
+    : n > 10.0 ? {flag:'warning',  label:'Hyperglycaemia',        tip:'BGL >10 mmol/L — significantly elevated. Likely uncontrolled diabetes or stress hyperglycaemia. Review insulin/medication.'}
+    : n >  7.8 ? {flag:'warning',  label:'Mildly Elevated BGL',   tip:'BGL 7.9–10.0 mmol/L — above post-meal target. Monitor; may indicate impaired glucose tolerance or early diabetes.'}
+    :            {flag:'normal',   label:'Normal BGL',            tip:'Blood glucose within target range (4.0–7.8 mmol/L). (NICE NG28)'},
+  };
+
+  return maps[id] || {flag:'normal', label:'Recorded', tip:''};
+}
+
+// Care task pool
+const CARE_TASKS = [
+  {id:'feed',   icon:'🍽',  label:'Nutrition & Fluid Intake'},
+  {id:'dress',  icon:'🩹',  label:'Wound & Dressing Check'},
+  {id:'repos',  icon:'🛏',   label:'Repositioning & Comfort'},
+  {id:'hygiene',icon:'🧼',  label:'Personal Hygiene Assistance'},
+  {id:'comms',  icon:'📣',  label:'Patient Communication & Education'},
+];
+
+// ═══════════════════════════════════════════════════════
+// CASE BANK — full personas + NANDA nursing diagnosis
+//
+// Each case has:
+//   nanda.label   — correct NANDA diagnosis label
+//   nanda.related — correct "related to" (aetiology)
+//   nanda.labels  — 3 label options (correct + 2 distractors)
+//   nanda.relateds— 3 related-to options (correct + 2 distractors)
+//   nanda.explanation — why this diagnosis is correct
+//   nanda.goals   — expected NOC outcome
+//   nanda.interventions — key NIC interventions
+// ═══════════════════════════════════════════════════════
+const caseBank = [
+  {
+    firstName:'Priya', age:24, backstory:'Student. Skipped meals studying for exams.',
+    urgency:'green', mood:'anxious',
+    moodNote:'She seems nervous and fidgets while speaking.',
+    symptoms:'I feel dizzy and a bit shaky… I think? I haven\'t really eaten today and I\'m sweating a lot.',
+    explanation:'Dizziness, sweating and shakiness after missing food suggests low blood sugar. Anxious presentation can mask severity.',
+    requiredVitals:['hr','bp','bgl'], requiredCare:['feed','comms'],
+    nanda:{
+      label:'Unstable Blood Glucose Level',
+      related:'insufficient dietary intake and skipped meals',
+      labels:['Unstable Blood Glucose Level','Acute Pain','Impaired Skin Integrity'],
+      relateds:['insufficient dietary intake and skipped meals','anxiety related to academic stress','dehydration secondary to reduced fluid intake'],
+      explanation:'NANDA: Unstable Blood Glucose Level (00179) — defined as variation in serum glucose levels outside normal range. Related to insufficient food intake. Evidenced by BGL <4.0 mmol/L, diaphoresis, tremor and dizziness.',
+      goals:'Patient will maintain BGL 4.0–7.8 mmol/L and be free of hypoglycaemic symptoms within 30 minutes of intervention.',
+      interventions:'Administer 15–20g oral fast-acting carbohydrate. Recheck BGL in 15 minutes. Educate on regular meal scheduling. Monitor for recurrence.',
+    },
+  },
+  {
+    firstName:'Robert', age:67, backstory:'Retired teacher. Came in alone, no next of kin listed.',
+    urgency:'red', mood:'distressed',
+    moodNote:'He is visibly distressed and gripping the bed rail.',
+    symptoms:'I have this terrible chest pain — it started about 20 minutes ago. I\'m struggling to breathe and I\'m drenched in sweat.',
+    explanation:'Chest pain with breathlessness and diaphoresis is a critical red flag. Immediate escalation required.',
+    requiredVitals:['hr','bp','spo2','rr'], requiredCare:['repos','comms'],
+    nanda:{
+      label:'Decreased Cardiac Output',
+      related:'altered heart rate and myocardial ischaemia',
+      labels:['Decreased Cardiac Output','Ineffective Breathing Pattern','Anxiety'],
+      relateds:['altered heart rate and myocardial ischaemia','pain related to musculoskeletal injury','fluid volume deficit secondary to vomiting'],
+      explanation:'NANDA: Decreased Cardiac Output (00029) — inadequate blood pumped to meet metabolic demands. Related to myocardial ischaemia. Evidenced by tachycardia, diaphoresis, chest pain and dyspnoea.',
+      goals:'Patient will demonstrate haemodynamic stability (HR 60–100, BP within acceptable limits) and report reduced pain within 20 minutes of intervention.',
+      interventions:'Immediate escalation to on-call team. 12-lead ECG. High-flow oxygen if SpO2 <94%. IV access. Continuous cardiac monitoring. Nil by mouth.',
+    },
+  },
+  {
+    firstName:'Aisha', age:31, backstory:'Primary school teacher. Has a known history of asthma.',
+    urgency:'yellow', mood:'anxious',
+    moodNote:'She is breathing audibly and looks frightened.',
+    symptoms:'I can\'t seem to catch my breath — there\'s this tightness in my chest and I keep wheezing.',
+    explanation:'Wheezing with chest tightness in a known asthmatic suggests an acute episode. Prompt assessment and bronchodilator support needed.',
+    requiredVitals:['spo2','rr','hr'], requiredCare:['repos','comms'],
+    nanda:{
+      label:'Ineffective Airway Clearance',
+      related:'bronchospasm secondary to acute asthma exacerbation',
+      labels:['Ineffective Airway Clearance','Impaired Gas Exchange','Acute Pain'],
+      relateds:['bronchospasm secondary to acute asthma exacerbation','anxiety and hyperventilation','musculoskeletal chest wall pain'],
+      explanation:'NANDA: Ineffective Airway Clearance (00031) — inability to clear secretions or obstructions from respiratory tract. Related to bronchospasm. Evidenced by audible wheeze, SpO2 <95%, elevated RR and chest tightness.',
+      goals:'Patient will demonstrate improved air entry with RR 12–20 and SpO2 ≥95% within 30 minutes of bronchodilator administration.',
+      interventions:'Administer prescribed salbutamol inhaler/nebuliser. Sit upright (high Fowler\'s). Apply supplemental oxygen. Monitor SpO2 continuously. Reassess peak flow.',
+    },
+  },
+  {
+    firstName:'George', age:58, backstory:'Lorry driver. Self-referred after weeks of feeling unwell.',
+    urgency:'green', mood:'calm',
+    moodNote:'He is calm but looks tired and pallid.',
+    symptoms:'Been feeling really tired lately. Thirsty all the time no matter how much I drink, and I\'m in the toilet every hour.',
+    explanation:'Polyuria, polydipsia and fatigue are classic presenting signs of undiagnosed type 2 diabetes. Requires blood glucose assessment.',
+    requiredVitals:['bgl','bp','hr'], requiredCare:['feed','comms'],
+    nanda:{
+      label:'Unstable Blood Glucose Level',
+      related:'inadequate diabetes self-management and undiagnosed hyperglycaemia',
+      labels:['Unstable Blood Glucose Level','Deficient Fluid Volume','Fatigue'],
+      relateds:['inadequate diabetes self-management and undiagnosed hyperglycaemia','excessive caffeine intake and sleep deprivation','urinary tract infection causing frequency'],
+      explanation:'NANDA: Unstable Blood Glucose Level (00179) — chronic hyperglycaemia pattern. Related to unmanaged/undiagnosed type 2 diabetes. Evidenced by BGL >10 mmol/L, polyuria, polydipsia and fatigue.',
+      goals:'Patient will have BGL documented and be referred for formal diabetes screening. Receives education on diabetes signs and monitoring.',
+      interventions:'Record BGL. Provide written information on diabetes symptoms. Refer to GP for fasting glucose and HbA1c. Advise on dietary modifications.',
+    },
+  },
+  {
+    firstName:'Mei', age:42, backstory:'Works night shifts at a warehouse. Single parent.',
+    urgency:'yellow', mood:'calm',
+    moodNote:'She seems exhausted but cooperative.',
+    symptoms:'I have a high temperature, a bad cough and I feel really weak. Been getting worse over three days.',
+    explanation:'Fever, productive cough and systemic weakness over several days suggests an infectious process — possibly lower respiratory tract.',
+    requiredVitals:['temp','hr','rr'], requiredCare:['hygiene','comms','repos'],
+    nanda:{
+      label:'Hyperthermia',
+      related:'infectious process — probable lower respiratory tract infection',
+      labels:['Hyperthermia','Acute Pain','Activity Intolerance'],
+      relateds:['infectious process — probable lower respiratory tract infection','physical overexertion from shift work','dehydration secondary to reduced oral intake'],
+      explanation:'NANDA: Hyperthermia (00007) — body temperature above normal range due to failure of thermoregulation. Related to infection. Evidenced by temp >38°C, tachycardia, productive cough and systemic malaise.',
+      goals:'Patient temperature will decrease to ≤37.5°C within 2 hours of antipyretic administration and adequate hydration.',
+      interventions:'Administer prescribed antipyretic. Encourage oral fluids. Tepid sponging if indicated. Obtain sputum sample. Monitor temp every 30 minutes.',
+    },
+  },
+  {
+    firstName:'Dennis', age:74, backstory:'Lives alone. Neighbour called the ambulance.',
+    urgency:'yellow', mood:'unresponsive',
+    moodNote:'He is drowsy and only giving short answers.',
+    symptoms:'I… don\'t know. Feel strange. Hands shaking.',
+    explanation:'Altered consciousness, tremor and limited history in an elderly patient suggests hypoglycaemia. Reduced responses should raise urgency.',
+    requiredVitals:['bgl','hr','bp'], requiredCare:['feed','repos','comms'],
+    nanda:{
+      label:'Unstable Blood Glucose Level',
+      related:'insufficient food intake and possible medication effect in elderly patient',
+      labels:['Unstable Blood Glucose Level','Acute Confusion','Risk for Falls'],
+      relateds:['insufficient food intake and possible medication effect in elderly patient','cerebrovascular event secondary to hypertension','delirium related to urinary tract infection'],
+      explanation:'NANDA: Unstable Blood Glucose Level (00179) with associated Acute Confusion (00128). Related to hypoglycaemia in elderly with likely poor intake. Evidenced by BGL <3.5 mmol/L, tremor, drowsiness and altered cognition.',
+      goals:'Patient will return to baseline cognition and maintain BGL >4.0 mmol/L within 20 minutes of glucose administration.',
+      interventions:'Administer oral or IV glucose per protocol. Safety: raise bed rails and apply call bell. Recheck BGL at 15 minutes. Notify doctor. Contact family/carer.',
+    },
+  },
+  {
+    firstName:'Lena', age:38, backstory:'Fitness instructor. No known medical history.',
+    urgency:'red', mood:'distressed',
+    moodNote:'She cannot finish sentences without gasping.',
+    symptoms:'Please… I can\'t breathe properly at all. My chest is so tight. I feel like I\'m going to pass out.',
+    explanation:'Severe dyspnoea with distress and near-syncope is a clinical emergency. Immediate airway assessment and escalation required.',
+    requiredVitals:['spo2','rr','hr','bp'], requiredCare:['repos','comms'],
+    nanda:{
+      label:'Impaired Gas Exchange',
+      related:'ventilation-perfusion imbalance secondary to respiratory emergency',
+      labels:['Impaired Gas Exchange','Ineffective Airway Clearance','Decreased Cardiac Output'],
+      relateds:['ventilation-perfusion imbalance secondary to respiratory emergency','anxiety-induced hyperventilation','musculoskeletal chest pain limiting respiratory effort'],
+      explanation:'NANDA: Impaired Gas Exchange (00030) — excess or deficit in oxygenation and/or CO2 elimination. Related to V/Q mismatch. Evidenced by SpO2 <92%, RR >24, severe dyspnoea, near-syncope and distress.',
+      goals:'Patient will achieve SpO2 ≥94% and RR <24 within 15 minutes of oxygen therapy and emergency intervention.',
+      interventions:'Immediate escalation. High-flow oxygen (15L via non-rebreathe mask). Sit upright. Continuous SpO2 monitoring. Prepare for possible intubation.',
+    },
+  },
+  {
+    firstName:'Tariq', age:22, backstory:'University student. Was at a house party last night.',
+    urgency:'yellow', mood:'anxious',
+    moodNote:'He keeps checking his phone and is visibly worried.',
+    symptoms:'I woke up with this rash spreading across my neck and face — it wasn\'t there yesterday. I feel unwell.',
+    explanation:'A spreading facial rash with systemic symptoms needs prompt review — allergic reaction or viral exanthem should be excluded urgently.',
+    requiredVitals:['hr','bp','temp'], requiredCare:['hygiene','comms'],
+    nanda:{
+      label:'Impaired Skin Integrity',
+      related:'immune-mediated inflammatory response — probable allergic reaction',
+      labels:['Impaired Skin Integrity','Risk for Infection','Anxiety'],
+      relateds:['immune-mediated inflammatory response — probable allergic reaction','contact irritant from cosmetic product','viral exanthem secondary to upper respiratory infection'],
+      explanation:'NANDA: Impaired Skin Integrity (00046) — altered epidermis. Related to allergic/inflammatory response. Evidenced by spreading erythematous rash, systemic malaise and tachycardia suggesting systemic involvement.',
+      goals:'Rash progression will cease and systemic symptoms will stabilise within 30 minutes of antihistamine administration and monitoring.',
+      interventions:'Administer prescribed antihistamine. Assess for anaphylaxis (airway, BP drop, stridor). Document rash distribution. Monitor vitals every 15 min.',
+    },
+  },
+  {
+    firstName:'Sandra', age:55, backstory:'Librarian. Fell while walking her dog this morning.',
+    urgency:'green', mood:'calm',
+    moodNote:'She is embarrassed and keeps apologising for coming in.',
+    symptoms:'I tripped on the kerb and landed on my ankle. It\'s swollen and sore but I managed to walk here, so it\'s probably nothing.',
+    explanation:'Localised ankle swelling after a mechanical fall is likely a sprain. X-ray may be warranted to exclude fracture.',
+    requiredVitals:['hr','bp'], requiredCare:['dress','repos','comms'],
+    nanda:{
+      label:'Acute Pain',
+      related:'tissue trauma secondary to ankle injury',
+      labels:['Acute Pain','Impaired Physical Mobility','Risk for Falls'],
+      relateds:['tissue trauma secondary to ankle injury','inflammatory response to sprain','peripheral vascular disease limiting healing'],
+      explanation:'NANDA: Acute Pain (00132) — unpleasant sensory/emotional experience from actual tissue damage. Related to ankle injury. Evidenced by patient-reported pain, localised swelling, tenderness and guarding on weight-bearing.',
+      goals:'Patient will report pain ≤4/10 within 30 minutes of analgesia and will be safe to mobilise with support.',
+      interventions:'Administer prescribed analgesia. Apply RICE: Rest, Ice, Compression (bandage), Elevation. Refer for X-ray. Assess neurovascular status distal to injury.',
+    },
+  },
+];
+
+// ═══════════════════════════════════════════════════════
+// LEVELS
+// ═══════════════════════════════════════════════════════
+const levels = [
+  {name:'Quiet Morning Shift', difficulty:'easy',   patients:3, time:300, passAccuracy:60, description:'Calm first shift. Learn the full care workflow with simple cases.', red:0, yellow:1},
+  {name:'Busy Afternoon Shift',difficulty:'medium', patients:5, time:240, passAccuracy:70, description:'More patients, less time, and more urgent complaints.',               red:1, yellow:2},
+  {name:'Emergency Surge',     difficulty:'hard',   patients:7, time:200, passAccuracy:75, description:'High pressure shift with critical patients and tighter timing.',      red:2, yellow:3},
+];
+
+// ── Utility ──────────────────────────────────────────────
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+// All possible patient position slots in the ward
+// Spread across all four zones so urgency can land anywhere
+const ALL_POSITIONS = [
+  {x:190,y:160},{x:360,y:160},   // Ward A top
+  {x:280,y:475},{x:400,y:475},   // Obs Room
+  {x:690,y:210},{x:880,y:210},   // Waiting Area
+  {x:660,y:480},{x:810,y:480},   // Ward B
+];
+
+// Valid equipment slots — 6 spots spread around the ward
+// Equipment is placed randomly from this pool each shift
+const EQUIPMENT_SLOTS = [
+  {x:440,y:120}, // Ward A top-right
+  {x:108,y:430}, // Obs Room left
+  {x:950,y:430}, // Ward B right
+  {x:108,y:130}, // Ward A left
+  {x:440,y:430}, // Obs Room right
+  {x:950,y:120}, // Waiting Area right
+];
+
+// ═══════════════════════════════════════════════════════
+// EQUIPMENT — placed on the map, must be collected before
+// certain vitals can be measured
+// ═══════════════════════════════════════════════════════
+const EQUIPMENT_DEFS = [
+  {
+    id: 'ecg',
+    label: 'ECG Monitor',
+    icon: '🫀',
+    color: '#f87171',
+    x: 440, y: 120, w: 44, h: 40,
+    unlocks: ['hr'],   // heart rate
+    pulse: 0,
+  },
+  {
+    id: 'oximeter',
+    label: 'Pulse Oximeter',
+    icon: '💨',
+    color: '#38bdf8',
+    x: 108, y: 430, w: 44, h: 40,
+    unlocks: ['spo2', 'rr'],  // SpO₂ + resp rate
+    pulse: 0,
+  },
+  {
+    id: 'glucometer',
+    label: 'Glucose Meter',
+    icon: '🍬',
+    color: '#fb923c',
+    x: 950, y: 430, w: 44, h: 40,
+    unlocks: ['bgl'],  // blood glucose
+    pulse: 0,
+  },
+];
+// bp and temp need no special equipment (cuff + thermometer assumed carried)
+
+// ═══════════════════════════════════════════════════════
+// NURSES STATION — player rests here to recover stamina
+// ═══════════════════════════════════════════════════════
+const NURSES_STATION = { x: 740, y: 130, w: 176, h: 70 }; // matches desk() draw position
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const keys = {};
+const player = {x:92, y:605, w:30, h:42, speed:3.4, step:0};
+let gameState = 'menu';
+let currentLevelIndex = 0;
+let unlockedLevel = Number(localStorage.getItem('shiftcareUnlocked') || 1);
+let score = 0, correctCount = 0, completed = 0;
+let shiftTime = 180;
+let panelOpen = false;
+let currentPatient = null;
+let feedbackTimer = 0;
+let patients = [];
+let flash = {alpha:0, color:'#22c55e'};
+
+// Stamina system
+let stamina = 100;                // 0–100
+const STAMINA_DRAIN         = 20; // per second while moving
+const STAMINA_REGEN         = 14; // per second while still
+const STAMINA_STATION_REGEN = 38; // per second at nurses station
+let atStation = false;
+let equipToastTimer = 0;
+
+// Equipment collected this shift
+let collectedEquipment = new Set();
+
+// ═══════════════════════════════════════════════════════
+// MAYA NPC — waypoint graph navigation
+//
+// Ward layout (canvas 1120×700):
+//   Vertical corridor:   x 518–600
+//   Horizontal corridor: y 355–410
+//
+// Named nodes sit at corridor junctions and room centres.
+// Edges only connect nodes that share open corridor space.
+// BFS finds shortest node-path; Maya walks node→node.
+// ═══════════════════════════════════════════════════════
+
+const NAV_NODES = {
+  // ── Vertical corridor (top half) ──
+  vtop:  {x:559, y:100},   // top of vertical corridor
+  vjA:   {x:559, y:200},   // junction: vert-corr ↔ Ward A door
+  vjW:   {x:559, y:200},   // alias — same x level as Ward A / Waiting
+  vjTop: {x:559, y:280},   // mid vertical top
+  vMid:  {x:559, y:383},   // centre of horizontal corridor (vert meets horiz)
+
+  // ── Horizontal corridor ──
+  hL:    {x:290, y:383},   // left end of horiz corridor
+  hR:    {x:820, y:383},   // right end of horiz corridor
+
+  // ── Vertical corridor (bottom half) ──
+  vBot:  {x:559, y:480},   // mid vertical bottom
+  vbot:  {x:559, y:580},   // bottom of vertical corridor
+
+  // ── Room anchor points (reachable from junctions) ──
+  wardA:    {x:250, y:200},  // Ward A interior
+  waiting:  {x:800, y:200},  // Waiting Area interior
+  obsRoom:  {x:250, y:490},  // Observation Room interior
+  wardB:    {x:800, y:490},  // Ward B interior
+  station:  {x:800, y:200},  // Nurses station (same area as waiting)
+};
+
+// Adjacency: each node lists its direct walkable neighbours
+const NAV_EDGES = {
+  vtop:    ['vjA'],
+  vjA:     ['vtop','vjTop','wardA','waiting'],
+  vjTop:   ['vjA','vMid'],
+  vMid:    ['vjTop','hL','hR','vBot'],
+  hL:      ['vMid','wardA','obsRoom'],
+  hR:      ['vMid','waiting','wardB'],
+  vBot:    ['vMid','vbot','obsRoom','wardB'],
+  vbot:    ['vBot'],
+  wardA:   ['vjA','hL'],
+  waiting: ['vjA','hR'],
+  obsRoom: ['hL','vBot'],
+  wardB:   ['hR','vBot'],
+  station: ['vjA','hR'],   // station is in Waiting area zone
+};
+
+// BFS to find shortest node path between two node names
+function navBFS(fromName, toName){
+  if(fromName === toName) return [fromName];
+  const visited = new Set([fromName]);
+  const queue = [[fromName]];
+  while(queue.length){
+    const path = queue.shift();
+    const cur = path[path.length-1];
+    for(const nb of (NAV_EDGES[cur]||[])){
+      if(visited.has(nb)) continue;
+      const newPath = [...path, nb];
+      if(nb === toName) return newPath;
+      visited.add(nb);
+      queue.push(newPath);
+    }
+  }
+  return [fromName]; // fallback: stay put
+}
+
+// Given a world position, return the nearest node name
+function nearestNode(wx, wy){
+  let best = 'vMid', bestD = Infinity;
+  for(const [name, n] of Object.entries(NAV_NODES)){
+    const d = Math.hypot(wx - n.x, wy - n.y);
+    if(d < bestD){ bestD = d; best = name; }
+  }
+  return best;
+}
+
+// Given a patient or location, return the best anchor node
+function nodeForPatient(p){
+  // Tag each patient position to a zone based on coordinates
+  const px = p.x, py = p.y;
+  const inTop  = py < 355;
+  const inLeft = px < 518;
+  if(inTop  &&  inLeft) return 'wardA';
+  if(inTop  && !inLeft) return 'waiting';
+  if(!inTop &&  inLeft) return 'obsRoom';
+  return 'wardB';
+}
+
+// Patrol sequence — zone anchor names in order
+const PATROL_ZONES = ['wardA','waiting','wardB','obsRoom','station'];
+
+const maya = {
+  x: 800, y: 200,
+  w: 30, h: 42,
+  step: 0,
+  speed: 1.1,
+
+  // Navigation
+  currentPath: [],       // array of node names to walk
+  pathNodeIdx: 0,        // which node we're heading toward
+  destZone: 'wardB',     // current patrol destination zone name
+  patrolZoneIdx: 0,      // index into PATROL_ZONES
+
+  // State
+  bubble: null,          // {text, timer}
+  hintCooldown: 0,
+  alertTarget: null,     // patient idx Maya is rushing toward
+  idleTimer: 0,          // pause at each patrol stop
+};
+
+// Plan a new path from Maya's current position to a named node
+function mayaGoTo(destNodeName){
+  const fromNode = nearestNode(maya.x, maya.y);
+  maya.currentPath = navBFS(fromNode, destNodeName).map(n => NAV_NODES[n]);
+  maya.pathNodeIdx = 0;
+}
+
+function updateMaya(delta){
+  if(gameState !== 'playing') return;
+
+  // Cooldowns & timers
+  if(maya.hintCooldown > 0) maya.hintCooldown -= delta;
+  if(maya.bubble){ maya.bubble.timer -= delta; if(maya.bubble.timer <= 0) maya.bubble = null; }
+
+  // ── Alert mode: rush to deteriorating patient ──
+  if(maya.alertTarget !== null){
+    const tp = patients[maya.alertTarget];
+    if(!tp || tp.completed){
+      maya.alertTarget = null;
+    } else {
+      if(maya.currentPath.length === 0){
+        mayaGoTo(nodeForPatient(tp));
+      }
+      mayaFollowPath(delta, 1.8);
+      if(maya.currentPath.length === 0 || maya.pathNodeIdx >= maya.currentPath.length){
+        const dx = tp.x - maya.x, dy = tp.y - maya.y;
+        const d = Math.hypot(dx,dy);
+        if(d > 30){ maya.x += (dx/d)*maya.speed*1.8; maya.y += (dy/d)*maya.speed*1.8; maya.step+=.08; }
+        else { maya.alertTarget = null; }
+      }
+      checkHint();
+      return;
+    }
+  }
+
+  // ── Idle pause at patrol stop ──
+  if(maya.idleTimer > 0){
+    maya.idleTimer -= delta;
+    checkHint();
+    return;
+  }
+
+  // ── Follow current path ──
+  if(maya.currentPath.length > 0 && maya.pathNodeIdx < maya.currentPath.length){
+    mayaFollowPath(delta, 1.0);
+    checkHint();
+    return;
+  }
+
+  // ── Reached patrol destination: pause then pick next zone ──
+  maya.idleTimer = 1.2 + Math.random() * 0.8;
+  maya.patrolZoneIdx = (maya.patrolZoneIdx + 1) % PATROL_ZONES.length;
+  mayaGoTo(PATROL_ZONES[maya.patrolZoneIdx]);
+  checkHint();
+}
+
+function checkHint(){
+  const playerDist = Math.hypot((player.x+15)-maya.x, (player.y+22)-maya.y);
+  if(playerDist < 60 && keys.h && maya.hintCooldown <= 0 && !panelOpen){
+    keys.h = false;
+    giveMayaHint();
+  }
+}
+
+function mayaFollowPath(delta, speedMult){
+  if(maya.pathNodeIdx >= maya.currentPath.length) return;
+  const target = maya.currentPath[maya.pathNodeIdx];
+  const dx = target.x - maya.x, dy = target.y - maya.y;
+  const dist = Math.hypot(dx, dy);
+  if(dist < 5){
+    maya.pathNodeIdx++;
+    maya.step += .07;
+  } else {
+    maya.x += (dx/dist) * maya.speed * speedMult;
+    maya.y += (dy/dist) * maya.speed * speedMult;
+    maya.step += .07;
+  }
+}
+
+function giveMayaHint(){
+  const urgent = patients
+    .filter(p => !p.completed)
+    .sort((a,b) => ({red:0,yellow:1,green:2}[a.urgency]||2) - ({red:0,yellow:1,green:2}[b.urgency]||2))[0];
+
+  let hint = '';
+  if(!urgent){
+    hint = 'All patients are being handled. Good work!';
+  } else {
+    const w = patientWorkflow[urgent.idx];
+    const sbarReq = urgent.urgency==='red'||urgent.urgency==='yellow';
+    if(!w.vitalsChecked.size)   hint = `${urgent.firstName} needs vitals checked first.`;
+    else if(!w.nandaDone)       hint = `Form a nursing diagnosis for ${urgent.firstName} — their vitals are recorded.`;
+    else if(!w.medicationDone)  hint = `Administer ${urgent.firstName}'s medication — diagnosis is ready.`;
+    else if(!w.careDone.size)   hint = `${urgent.firstName} still needs their care tasks completed.`;
+    else if(sbarReq&&!w.sbarDone) hint = `${urgent.firstName} needs an SBAR escalation to the on-call team.`;
+    else if(!w.docDone)         hint = `${urgent.firstName}'s documentation needs signing off.`;
+    else hint = `${urgent.firstName} looks like the priority right now.`;
+  }
+
+  maya.bubble = {text: hint, timer: 5};
+  shiftTime -= 8;
+  maya.hintCooldown = 20;
+  playBeep(880);
+  setTimeout(() => playBeep(1050), 130);
+}
+
+function mayaAlertDeterioration(patientIdx){
+  maya.alertTarget = patientIdx;
+  maya.currentPath = []; // force replanning
+  maya.bubble = {text: `${patients[patientIdx].firstName} is deteriorating — go now!`, timer: 6};
+}
+
+function drawMaya(){
+  if(gameState !== 'playing' && gameState !== 'end') return;
+
+  const bob = Math.sin(maya.step * 1.2) * 1.5;
+  const x = Math.round(maya.x);
+  const y = Math.round(maya.y);
+
+  drawMayaSprite(x, y, bob);
+
+  // Name label
+  ctx.font = 'bold 11px Inter,Arial';
+  const lw = ctx.measureText('Maya (RN)').width;
+  const lx = x + 16 - lw/2 - 5;
+  const ly = y + 66;
+  ctx.fillStyle = 'rgba(14,116,144,.88)';
+  rr(lx, ly, lw + 10, 15, 6, true, false);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('Maya (RN)', lx + 5, ly + 11);
+
+  // Speech bubble
+  if(maya.bubble){
+    ctx.font = '12px Inter,Arial';
+    const maxW = 190;
+    const words = maya.bubble.text.split(' ');
+    const lines = [];
+    let cur = '';
+    words.forEach(word => {
+      const test = cur ? cur+' '+word : word;
+      if(ctx.measureText(test).width > maxW - 18){ lines.push(cur); cur = word; }
+      else cur = test;
+    });
+    if(cur) lines.push(cur);
+
+    const bh = lines.length * 16 + 14;
+    const bw = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)) + 18);
+    const bx = Math.max(44, Math.min(x - bw/2, canvas.width - bw - 44));
+    const by = Math.max(44, y - bh - 16);
+
+    ctx.fillStyle = 'rgba(14,116,144,.95)';
+    rr(bx, by, bw, bh, 8, true, false);
+    ctx.fillStyle = 'rgba(14,116,144,.95)';
+    ctx.beginPath();
+    ctx.moveTo(x+16, y+2);
+    ctx.lineTo(bx + bw/2 - 5, by + bh);
+    ctx.lineTo(bx + bw/2 + 5, by + bh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f0fdfa';
+    lines.forEach((line, i) => ctx.fillText(line, bx + 9, by + 13 + i*16));
+  }
+
+  // Hint prompt when player nearby
+  const playerDist = Math.hypot((player.x+15) - (x+16), (player.y+22) - (y+22));
+  if(playerDist < 60 && !panelOpen && gameState==='playing'){
+    ctx.font = 'bold 11px Inter,Arial';
+    const label = maya.hintCooldown > 0
+      ? 'Hint in ' + Math.ceil(maya.hintCooldown) + 's'
+      : 'Press H for hint (-8s)';
+    const pw = ctx.measureText(label).width + 16;
+    const px = x + 16 - pw/2;
+    const py = y - 22;
+    ctx.fillStyle = maya.hintCooldown > 0 ? 'rgba(100,116,139,.85)' : 'rgba(14,116,144,.92)';
+    rr(px, py, pw, 18, 6, true, false);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, px + 8, py + 13);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// PANEL HELPERS
+// ═══════════════════════════════════════════════════════
+function hidePanels(){panels.forEach(id => document.getElementById(id).style.display = 'none'); panelOpen = false}
+function showMenu(){gameState='menu'; hidePanels(); hud.style.display='none'; instructions.style.display='none'; document.getElementById('menuPanel').style.display='block'}
+function showHowToPlay(){hidePanels(); document.getElementById('howPanel').style.display='block'}
+function showLevelSelect(){gameState='levelSelect'; hidePanels(); hud.style.display='none'; instructions.style.display='none'; renderLevels(); document.getElementById('levelPanel').style.display='block'}
+function resetProgress(){localStorage.removeItem('shiftcareUnlocked'); unlockedLevel=1; showMenu()}
+
+function renderLevels(){
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  levels.forEach((lv,i) => {
+    const locked = (i+1) > unlockedLevel;
+    const d = document.createElement('div');
+    d.className = 'levelCard ' + (locked?'locked':'');
+    d.innerHTML = `<span class="difficulty ${lv.difficulty}">${lv.difficulty.toUpperCase()}</span>
+      <h3>${i+1}. ${lv.name}</h3><p>${lv.description}</p>
+      <div class="levelMeta">
+        <span>👤 Patients: ${lv.patients}</span>
+        <span>⏱ Time: ${formatTime(lv.time)}</span>
+        <span>🎯 Pass: ${lv.passAccuracy}% accuracy</span>
+      </div>
+      <strong>${locked?'🔒 Locked':'▶ Play Shift'}</strong>`;
+    if(!locked) d.onclick = () => startLevel(i);
+    grid.appendChild(d);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// LEVEL
+// ═══════════════════════════════════════════════════════
+function startLevel(index){
+  currentLevelIndex = index;
+  const lv = levels[index];
+  gameState = 'playing';
+  hidePanels();
+  panelOpen = false;
+  currentPatient = null;
+  // Clear all floating UI
+  ['deteriorationAlert','restIndicator','equipToast','exitToast'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='none';
+  });
+  const vc=document.getElementById('quizVitalsContext'); if(vc) vc.style.display='none';
+  const vig=document.getElementById('vignette'); if(vig) vig.style.boxShadow='none';
+  hud.style.display = 'flex';
+  instructions.style.display = 'block';
+  score = 0; correctCount = 0; completed = 0;
+  shiftTime = lv.time; feedbackTimer = 0;
+  player.x = 92; player.y = 605;
+  stamina = 100; collectedEquipment = new Set();
+  stepAwayPatientIdx = -1; stepAwayCooldown = 0;
+  EQUIPMENT_DEFS.forEach(e => e.pulse = 0);
+  maya.x=800; maya.y=200; maya.step=0; maya.patrolZoneIdx=0;
+  maya.currentPath=[]; maya.pathNodeIdx=0;
+  maya.bubble=null; maya.hintCooldown=0; maya.alertTarget=null; maya.idleTimer=0;
+  mayaGoTo('wardA');
+  shiftNameHud.textContent = 'ShiftCare · ' + lv.name;
+  patientWorkflow = {};
+  createPatients(lv);
+}
+function retryShift(){ hidePanels(); panelOpen=false; startLevel(currentLevelIndex); }
+function nextShift(){ hidePanels(); panelOpen=false; if(currentLevelIndex<levels.length-1) startLevel(currentLevelIndex+1); else showLevelSelect(); }
+
+function createPatients(lv){
+  // ── 1. Shuffle each urgency pool independently ──
+  const red    = shuffle(caseBank.filter(c => c.urgency==='red'));
+  const yellow = shuffle(caseBank.filter(c => c.urgency==='yellow'));
+  const green  = shuffle(caseBank.filter(c => c.urgency==='green'));
+
+  const sel = [];
+  for(let i=0;i<lv.red;i++)    sel.push({...red[i%red.length]});
+  for(let i=0;i<lv.yellow;i++) sel.push({...yellow[i%yellow.length]});
+  while(sel.length < lv.patients) sel.push({...green[sel.length%green.length]});
+
+  // Shuffle the combined selection so urgency order is random across positions
+  const shuffledCases = shuffle(sel.slice(0,lv.patients));
+
+  // ── 2. Shuffle position slots ──
+  const shuffledPositions = shuffle(ALL_POSITIONS).slice(0, lv.patients);
+
+  patients = shuffledCases.map((c,i) => ({
+    ...c,
+    name: c.firstName + ', ' + c.age,
+    x: shuffledPositions[i].x,
+    y: shuffledPositions[i].y,
+    w: 34, h: 44,
+    completed: false,
+    pulse: Math.random()*10,
+    idx: i,
+  }));
+
+  // ── 3. Randomise equipment positions ──
+  const slotPool = shuffle(EQUIPMENT_SLOTS);
+  EQUIPMENT_DEFS.forEach((eq, i) => {
+    eq.x = slotPool[i].x;
+    eq.y = slotPool[i].y;
+    eq.pulse = 0;
+  });
+
+  // Init workflow
+  patients.forEach(p => {
+    patientWorkflow[p.idx] = {
+      vitalsChecked: new Set(),
+      vitalsValues:  {},
+      medicationDone: false,
+      careDone: new Set(),
+      triageDone: false,
+      nandaDone: false,
+      nandaResult: null,
+      sbarDone: false,
+      sbarSelections: {},
+      docDone: false,
+      waitTime: 0,
+      deteriorated: false,
+      originalUrgency: p.urgency,
+      triageCorrect: null,
+      visitedAt: null,
+    };
+  });
+}
+
+function wf(){ return currentPatient ? patientWorkflow[currentPatient.idx] : null }
+
+function formatTime(s){
+  return Math.floor(s/60).toString().padStart(2,'0')+':'+Math.floor(s%60).toString().padStart(2,'0');
+}
+
+// ═══════════════════════════════════════════════════════
+// INTERACTION MENU
+// ═══════════════════════════════════════════════════════
+function moodColor(mood){
+  return {calm:'#10b981', anxious:'#f59e0b', distressed:'#ef4444', unresponsive:'#94a3b8'}[mood]||'#94a3b8';
+}
+function moodIcon(mood){
+  return {calm:'😐', anxious:'😰', distressed:'😣', unresponsive:'😶'}[mood]||'😐';
+}
+
+function openInteractionMenu(p){
+  panelOpen = true;
+  currentPatient = p;
+  const w = wf();
+
+  // Persona header
+  document.getElementById('interactTitle').textContent = p.firstName + ', ' + p.age;
+  const moodC = moodColor(p.mood);
+  document.getElementById('interactSub').innerHTML =
+    '<span style="color:'+uColor(p.urgency)+';font-weight:700">'+uText(p.urgency)+'</span>' +
+    ' &nbsp;&middot;&nbsp; ' +
+    '<span style="color:'+moodC+'">'+moodIcon(p.mood)+' '+p.mood.charAt(0).toUpperCase()+p.mood.slice(1)+'</span>' +
+    ' &nbsp;&middot;&nbsp; ' +
+    '<span style="color:#64748b;font-size:12px">'+p.backstory+'</span>';
+
+  // SBAR only required for red/yellow patients (escalation needed)
+  const sbarRequired = (p.urgency === 'red' || p.urgency === 'yellow');
+
+  const btnVitals = document.getElementById('btnVitals');
+  const btnNANDA  = document.getElementById('btnNANDA');
+  const btnMed    = document.getElementById('btnMed');
+  const btnCare   = document.getElementById('btnCare');
+  const btnSBAR   = document.getElementById('btnSBAR');
+  const btnDoc    = document.getElementById('btnDoc');
+
+  // Step 1: Vitals
+  btnVitals.disabled = false;
+  btnVitals.className = 'intBtn' + (w.vitalsChecked.size>0 ? ' done' : ' active-step');
+
+  // Step 2: NANDA — after vitals
+  btnNANDA.disabled = w.vitalsChecked.size === 0;
+  btnNANDA.className = 'intBtn' + (w.nandaDone ? ' done' : (w.vitalsChecked.size>0 ? ' active-step' : ''));
+
+  // Step 3: Medication — after NANDA (now informed by diagnosis)
+  btnMed.disabled = !w.nandaDone;
+  btnMed.className = 'intBtn' + (w.medicationDone ? ' done' : (w.nandaDone ? ' active-step' : ''));
+
+  // Step 4: Care — after medication
+  btnCare.disabled = !w.medicationDone;
+  btnCare.className = 'intBtn' + (w.careDone.size>0 ? ' done' : (w.medicationDone ? ' active-step' : ''));
+
+  // Step 5: SBAR escalation — red/yellow only, after care
+  if(sbarRequired){
+    btnSBAR.disabled = w.careDone.size === 0;
+    btnSBAR.className = 'intBtn' + (w.sbarDone ? ' done' : (w.careDone.size>0 ? ' active-step' : ''));
+    btnSBAR.style.opacity = '';
+    btnSBAR.querySelector('.intLabel').textContent = 'Escalate / SBAR';
+    btnSBAR.title = 'Escalate to on-call team via SBAR';
+  } else {
+    // Green patients — routine care, no escalation needed
+    btnSBAR.disabled = true;
+    btnSBAR.className = 'intBtn';
+    btnSBAR.style.opacity = '0.25';
+    btnSBAR.querySelector('.intLabel').textContent = 'SBAR (N/A)';
+    btnSBAR.title = 'SBAR escalation not required for low-priority patients';
+    if(!w.sbarDone) w.sbarDone = true; // auto-complete for green
+  }
+
+  // Step 6: Documentation — after SBAR (red/yellow) or after care (green)
+  const docUnlocked = sbarRequired ? w.sbarDone : w.careDone.size > 0;
+  btnDoc.disabled = !docUnlocked;
+  btnDoc.className = 'intBtn' + (w.docDone ? ' done' : (docUnlocked ? ' active-step' : ''));
+
+  hidePanels();
+  panelOpen = true;
+  document.getElementById('interactionPanel').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 1 — VITALS
+// ═══════════════════════════════════════════════════════
+function vitalNeedsEquipment(vitalId){
+  // Returns the equipment def that unlocks this vital, or null if no equipment needed
+  return EQUIPMENT_DEFS.find(e => e.unlocks.includes(vitalId)) || null;
+}
+
+function openVitals(){
+  const w = wf();
+  const grid = document.getElementById('vitalsGrid');
+  grid.innerHTML = '';
+  ALL_VITALS.forEach(v => {
+    const isRequired = currentPatient.requiredVitals.includes(v.id);
+    const isChecked  = w.vitalsChecked.has(v.id);
+    const val = w.vitalsValues[v.id] || null;
+    const equipNeeded = vitalNeedsEquipment(v.id);
+    const equipCollected = !equipNeeded || collectedEquipment.has(equipNeeded.id);
+    const locked = !isChecked && !equipCollected;
+
+    const chip = document.createElement('div');
+    let chipClass = 'vitalChip';
+    if(isChecked) chipClass += ' checked';
+    if(locked) chipClass += ' equipment-locked';
+    if(isChecked && val && isVitalAbnormal(v.id, val, currentPatient.urgency)) chipClass += ' abnormal';
+    if(isChecked && val && isVitalCritical(v.id, val)) chipClass += ' critical-val';
+    chip.className = chipClass;
+    chip.dataset.id = v.id;
+
+    const abnormalNote = (isChecked && val && isVitalAbnormal(v.id, val, currentPatient.urgency))
+      ? ' ⚠' : '';
+    const lockNote = locked
+      ? `<span class="equipLockTag">🔒 Needs ${equipNeeded.label}</span>` : '';
+    const valText = isChecked ? val + abnormalNote : (locked ? 'Collect equipment first' : 'Tap to measure');
+
+    chip.innerHTML = `<span class="vIcon">${v.icon}</span>
+      <span class="vName">${v.name}</span>
+      ${isRequired ? '<span class="vReq">Required</span>' : ''}
+      <span class="vVal">${valText}</span>${lockNote}`;
+    if(!locked) chip.onclick = () => measureVital(v.id, chip, w);
+    grid.appendChild(chip);
+  });
+  hidePanels(); panelOpen = true;
+  document.getElementById('vitalsPanel').style.display = 'block';
+}
+
+function measureVital(id, chip, w){
+  if(chip.classList.contains('checked')) return;
+  chip.classList.add('checking');
+  setTimeout(() => {
+    chip.classList.remove('checking');
+    chip.classList.add('checked');
+    const val = generateVitalValue(id, currentPatient.urgency);
+    w.vitalsChecked.add(id);
+    w.vitalsValues[id] = val;
+    const interp = interpretVital(id, val);
+    const fc = interp.flag==='critical'?'#ef4444':interp.flag==='warning'?'#f59e0b':'#10b981';
+    const fi = interp.flag==='critical'?'🔴':interp.flag==='warning'?'⚠️':'✓';
+    chip.querySelector('.vVal').innerHTML =
+      '<span style="font-family:var(--f-mono);font-size:12px">'+val+'</span>' +
+      '<span style="display:block;font-size:10px;font-weight:700;color:'+fc+';margin-top:3px">'+fi+' '+interp.label+'</span>' +
+      '<span style="display:block;font-size:9px;color:#94a3b8;line-height:1.4;margin-top:2px">'+interp.tip+'</span>';
+    if(interp.flag!=='normal') chip.classList.add('abnormal');
+    if(interp.flag==='critical') chip.classList.add('critical-val');
+    playBeep(interp.flag==='critical'?320:interp.flag==='warning'?440:660);
+  }, 500);
+}
+
+function closeVitals(){ openInteractionMenu(currentPatient) }
+
+function confirmVitals(){
+  const w = wf();
+  if(w.vitalsChecked.size === 0){
+    showToast('Please measure at least one vital sign before proceeding.');
+    return;
+  }
+  score += 5; // bonus for checking vitals
+  openInteractionMenu(currentPatient);
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 2 — MEDICATION
+// ═══════════════════════════════════════════════════════
+function openMedication(){
+  const w = wf();
+  if(w.medicationDone){ openInteractionMenu(currentPatient); return; }
+  document.getElementById('medAnim').textContent = '💊';
+  // Reference the NANDA diagnosis so medication feels clinically connected
+  const nandaLabel = w.nandaDone && currentPatient.nanda ? currentPatient.nanda.label : null;
+  const desc = nandaLabel
+    ? 'Administer prescribed medication as per care plan for: <strong>' + nandaLabel + '</strong>.<br><small style="color:#94a3b8">' + (currentPatient.nanda.interventions.split('.')[0]) + '.</small>'
+    : 'Administer prescribed medication as per clinical protocol.';
+  document.getElementById('medDesc').innerHTML = desc;
+  document.getElementById('medBtn').disabled = false;
+  hidePanels(); panelOpen = true;
+  document.getElementById('medicationPanel').style.display = 'block';
+}
+
+function giveMedication(){
+  document.getElementById('medBtn').disabled = true;
+  // animation
+  const emojis = ['💊','✨','💫','🌟','😊'];
+  document.getElementById('medAnim').textContent = '✨';
+  medOverlay.style.display = 'flex';
+  for(let i=0;i<8;i++){
+    const el = document.createElement('div');
+    el.className = 'medParticle';
+    el.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    el.style.left  = (20+Math.random()*60)+'%';
+    el.style.top   = (30+Math.random()*40)+'%';
+    el.style.animationDelay = (Math.random()*0.4)+'s';
+    medOverlay.appendChild(el);
+  }
+  playChime();
+  // patient happy flash
+  flash = {alpha:.15, color:'#22c55e'};
+  setTimeout(() => {
+    medOverlay.innerHTML = '';
+    medOverlay.style.display = 'none';
+    document.getElementById('medAnim').textContent = '✅';
+    wf().medicationDone = true;
+    score += 5;
+    setTimeout(() => openInteractionMenu(currentPatient), 700);
+  }, 1400);
+}
+
+function closeMedication(){ openInteractionMenu(currentPatient) }
+
+// ═══════════════════════════════════════════════════════
+// STEP 3 — CARE
+// ═══════════════════════════════════════════════════════
+function openCare(){
+  const w = wf();
+  const list = document.getElementById('careList');
+  list.innerHTML = '';
+  CARE_TASKS.forEach(task => {
+    const isRequired = currentPatient.requiredCare.includes(task.id);
+    const isDone = w.careDone.has(task.id);
+    const item = document.createElement('div');
+    item.className = 'careItem' + (isDone?' checked':'');
+    item.dataset.id = task.id;
+    item.innerHTML = `<div class="careCheck">${isDone?'✓':''}</div>
+      <span class="careLabel">${task.icon} ${task.label}</span>
+      ${isRequired?'<span class="careTag">Required</span>':''}`;
+    item.onclick = () => toggleCare(task.id, item, w);
+    list.appendChild(item);
+  });
+  hidePanels(); panelOpen = true;
+  document.getElementById('carePanel').style.display = 'block';
+}
+
+function toggleCare(id, item, w){
+  if(w.careDone.has(id)){
+    w.careDone.delete(id);
+    item.classList.remove('checked');
+    item.querySelector('.careCheck').textContent = '';
+  } else {
+    w.careDone.add(id);
+    item.classList.add('checked');
+    item.querySelector('.careCheck').textContent = '✓';
+    playBeep(880);
+  }
+}
+
+function closeCare(){ openInteractionMenu(currentPatient) }
+
+// Called by the NANDA button in the interaction menu
+function openSBAR_guard_NANDA(){ openNANDA(); }
+
+function confirmCare(){
+  const w = wf();
+  const missing = currentPatient.requiredCare.filter(id => !w.careDone.has(id));
+  if(missing.length > 0){
+    document.querySelectorAll('.careItem').forEach(el => {
+      if(missing.includes(el.dataset.id)) el.classList.add('required-flag');
+    });
+    showToast('Please complete all required care obligations before proceeding.');
+    return;
+  }
+  score += 5;
+  // Return to interaction menu — SBAR/Documentation available next
+  openInteractionMenu(currentPatient);
+}
+
+// ═══════════════════════════════════════════════════════
+// TRIAGE QUIZ (now Step 3.5 between Care and Documentation)
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// NANDA NURSING DIAGNOSIS BUILDER
+// Replaces the simple triage quiz with a structured
+// three-part PES diagnosis: Problem + Etiology + Signs
+// ═══════════════════════════════════════════════════════
+
+// Called from confirmCare() — this is the new "triage" step
+function openTriageQuiz(){ openNANDA(); }
+
+function openNANDA(){
+  const p = currentPatient;
+  const w = wf();
+  if(w.nandaDone){ openInteractionMenu(p); return; }
+
+  document.getElementById('patientTitle').textContent = p.firstName + ', ' + p.age + ' — Nursing Diagnosis';
+  document.getElementById('symptomsText').innerHTML =
+    '<em style="color:'+moodColor(p.mood)+';font-size:12px;display:block;margin-bottom:8px">'+moodIcon(p.mood)+' '+p.moodNote+'</em>' +
+    '"'+p.symptoms+'"';
+
+  document.getElementById('urgencyBadge').textContent = uText(p.urgency);
+  document.getElementById('urgencyBadge').style.background = uColor(p.urgency);
+  document.getElementById('urgencyBadge').style.color = p.urgency==='green'?'#052e16':'#111827';
+
+  // Vitals context
+  const vitalsCtx = document.getElementById('quizVitalsContext');
+  const findings = [...w.vitalsChecked].map(vid => {
+    const vval = w.vitalsValues[vid]; if(!vval) return null;
+    const interp = interpretVital(vid, vval);
+    if(interp.flag==='normal') return null;
+    const col = interp.flag==='critical'?'#f87171':'#fbbf24';
+    return '<span style="color:'+col+';font-weight:700">'+(interp.flag==='critical'?'🔴':'⚠️')+' '+interp.label+'</span>';
+  }).filter(Boolean);
+  vitalsCtx.innerHTML = findings.length > 0
+    ? '<span style="color:#64748b;font-size:12px">Recorded findings: </span>'+findings.join(' &nbsp;·&nbsp; ')
+    : w.vitalsChecked.size===0
+      ? '<span style="color:#f87171;font-size:12px">⚠ No vitals recorded — As Evidenced By section will be incomplete.</span>'
+      : '<span style="color:#10b981;font-size:12px">✓ All recorded vitals within normal range.</span>';
+  vitalsCtx.style.display = 'block';
+
+  // ── P: Diagnosis Label options ──
+  const labelOpts = shuffle([...p.nanda.labels]);
+  const pDiv = document.getElementById('nandaOptsP');
+  pDiv.innerHTML = labelOpts.map(label =>
+    '<button class="nandaOpt" data-part="P" data-value="'+label+'" data-correct="'+(label===p.nanda.label)+'" onclick="selectNANDAOpt(this)">'+label+'</button>'
+  ).join('');
+
+  // ── E: Related To options ──
+  const relOpts = shuffle([...p.nanda.relateds]);
+  const eDiv = document.getElementById('nandaOptsE');
+  eDiv.innerHTML = relOpts.map(rel =>
+    '<button class="nandaOpt" data-part="E" data-value="'+rel+'" data-correct="'+(rel===p.nanda.related)+'" onclick="selectNANDAOpt(this)">'+rel+'</button>'
+  ).join('');
+
+  // ── S: Evidence checkboxes — built from recorded vitals + symptoms ──
+  buildEvidenceList(p, w);
+
+  // Reset preview
+  document.getElementById('nandaPreview').style.display = 'none';
+
+  hidePanels(); panelOpen = true;
+  document.getElementById('quizPanel').style.display = 'block';
+}
+
+function buildEvidenceList(p, w){
+  const div = document.getElementById('nandaEvidenceList');
+  const missNote = document.getElementById('nandaEvidenceMiss');
+  div.innerHTML = '';
+
+  // Build evidence items from recorded vitals
+  const recordedEvidence = [];
+  const missedEvidence = [];
+
+  ALL_VITALS.forEach(v => {
+    const val = w.vitalsValues[v.id];
+    const isRequired = p.requiredVitals.includes(v.id);
+    if(val){
+      const interp = interpretVital(v.id, val);
+      if(interp.flag !== 'normal'){
+        recordedEvidence.push({text: v.name + ': ' + val + ' (' + interp.label + ')', key: v.id, fromVital: true});
+      }
+    } else if(isRequired){
+      missedEvidence.push({text: v.name + ': not recorded (required)', key: v.id, fromVital: true, missed: true});
+    }
+  });
+
+  // Always include symptoms as evidence
+  const symptomEvidence = [
+    {text:'Patient-reported: ' + p.symptoms.substring(0,60) + '…', key:'symptoms', fromVital: false},
+    {text:'Mood/presentation: ' + p.mood + ' — ' + p.moodNote, key:'mood', fromVital: false},
+  ];
+
+  const allItems = [...recordedEvidence, ...symptomEvidence, ...missedEvidence];
+
+  allItems.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'nandaEvItem' + (item.missed?' missed':'');
+    el.dataset.key = item.key;
+    el.dataset.missed = item.missed || false;
+    el.innerHTML = '<span class="nandaEvCheck">'+(item.missed?'—':'')+'</span>' + item.text;
+    if(!item.missed) el.onclick = () => toggleEvidence(el);
+    div.appendChild(el);
+  });
+
+  missNote.style.display = missedEvidence.length > 0 ? 'block' : 'none';
+}
+
+function toggleEvidence(el){
+  el.classList.toggle('checked');
+  el.querySelector('.nandaEvCheck').textContent = el.classList.contains('checked') ? '✓' : '';
+  updateNANDAPreview();
+}
+
+function selectNANDAOpt(btn){
+  const part = btn.dataset.part;
+  document.querySelectorAll('.nandaOpt[data-part="'+part+'"]').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  updateNANDAPreview();
+}
+
+function updateNANDAPreview(){
+  const selP = document.querySelector('.nandaOpt[data-part="P"].selected');
+  const selE = document.querySelector('.nandaOpt[data-part="E"].selected');
+  const selS = [...document.querySelectorAll('.nandaEvItem.checked')].map(el => el.textContent.replace('✓','').trim());
+
+  const preview = document.getElementById('nandaPreview');
+  if(selP || selE || selS.length > 0){
+    let stmt = '';
+    if(selP) stmt += '<strong>'+selP.dataset.value+'</strong>';
+    if(selE) stmt += ' <span style="color:var(--c-text-3)">related to</span> '+selE.dataset.value;
+    if(selS.length > 0) stmt += ' <span style="color:var(--c-text-3)">as evidenced by</span> '+selS.slice(0,3).join('; ');
+    document.getElementById('nandaPreviewText').innerHTML = stmt;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function closeNANDA(){ openInteractionMenu(currentPatient); }
+
+function submitNANDA(){
+  const p = currentPatient;
+  const w = wf();
+
+  const selP = document.querySelector('.nandaOpt[data-part="P"].selected');
+  const selE = document.querySelector('.nandaOpt[data-part="E"].selected');
+  const selS = [...document.querySelectorAll('.nandaEvItem.checked:not(.missed)')];
+
+  if(!selP){ showToast('Please select a nursing diagnosis label (Problem).'); return; }
+  if(!selE){ showToast('Please select a Related To (aetiology) statement.'); return; }
+  if(selS.length === 0){ showToast('Please tick at least one piece of supporting evidence.'); return; }
+
+  const labelCorrect   = selP.dataset.correct === 'true';
+  const relatedCorrect = selE.dataset.correct === 'true';
+  const evidenceCount  = selS.length;
+
+  // Score
+  let pts = 0;
+  if(labelCorrect)   { pts += p.urgency==='red'?15:10; correctCount++; }
+  if(relatedCorrect) { pts += 5; }
+  pts += Math.min(evidenceCount, 3) * 2; // up to +6 for evidence
+  if(!labelCorrect) pts -= 5;
+  score += pts;
+
+  // Build full PES statement
+  const fullDiagnosis =
+    selP.dataset.value +
+    ' related to ' + selE.dataset.value +
+    ' as evidenced by ' + selS.map(el => el.textContent.replace('✓','').trim()).join('; ');
+
+  w.triageDone   = true;
+  w.nandaDone    = true;
+  w.triageCorrect = labelCorrect && relatedCorrect;
+  w.nandaResult  = {labelCorrect, relatedCorrect, evidenceCount, fullDiagnosis};
+
+  flash = {alpha:.22, color: (labelCorrect && relatedCorrect) ? '#22c55e' : '#f59e0b'};
+
+  // Feedback
+  let msg = '';
+  if(labelCorrect && relatedCorrect){
+    msg = '<strong style="color:#4ade80">✓ Correct nursing diagnosis.</strong><br>' + p.nanda.explanation +
+          '<br><br><strong style="color:#94a3b8">Goals:</strong> ' + p.nanda.goals +
+          '<br><strong style="color:#94a3b8">Key Interventions:</strong> ' + p.nanda.interventions;
+  } else if(labelCorrect){
+    msg = '<strong style="color:#fbbf24">⚠ Correct diagnosis label, incorrect aetiology.</strong><br>Correct: <em>' +
+          p.nanda.label + ' related to ' + p.nanda.related + '</em><br>' + p.nanda.explanation;
+  } else if(relatedCorrect){
+    msg = '<strong style="color:#fbbf24">⚠ Correct aetiology, incorrect diagnosis label.</strong><br>Correct diagnosis: <em>' +
+          p.nanda.label + '</em><br>' + p.nanda.explanation;
+  } else {
+    msg = '<strong style="color:#f87171">✗ Incorrect nursing diagnosis.</strong><br>Correct: <em>' +
+          p.nanda.label + ' related to ' + p.nanda.related + '</em><br>' + p.nanda.explanation;
+  }
+
+  feedbackText.innerHTML = msg;
+  hidePanels(); panelOpen = true;
+  feedbackPanel.style.display = 'block';
+  feedbackTimer = 6;
+  setTimeout(() => {
+    feedbackPanel.style.display = 'none';
+    openInteractionMenu(p);
+  }, 6200);
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SBAR HANDOVER SYSTEM
+// ═══════════════════════════════════════════════════════
+
+// Build context-aware SBAR options for the current patient
+function buildSBAROptions(p, w){
+  const urgencyLabel = uText(p.urgency);
+  const ageStr = p.age + '-year-old';
+
+  // Collect abnormal vitals for Assessment section
+  const abnormals = [...w.vitalsChecked].map(id => {
+    const val = w.vitalsValues[id]; if(!val) return null;
+    const interp = interpretVital(id, val);
+    if(interp.flag === 'normal') return null;
+    return interp.label + ' (' + val + ')';
+  }).filter(Boolean);
+
+  const vitalsStr = abnormals.length > 0
+    ? abnormals.join(', ')
+    : 'vitals within normal limits';
+
+  // Correct recommendation based on urgency
+  const recCorrect = {
+    red:    'Immediate escalation required — request urgent senior review and notify the on-call doctor now.',
+    yellow: 'Prompt review required — notify the senior nurse and monitor closely. Reassess within 30 minutes.',
+    green:  'Continue monitoring. Document findings and reassess at next scheduled obs round.',
+  }[p.urgency];
+
+  return {
+    S: {
+      label: 'Situation',
+      color: '#ef4444',
+      prompt: 'Who is the patient and what is the immediate concern?',
+      options: [
+        { text: 'I am calling about ' + p.firstName + ', a ' + ageStr + ' ' + urgencyLabel.toLowerCase() + ' patient presenting with ' + p.symptoms.split('.')[0].toLowerCase().replace(/^i /,'').replace(/^i\'ve /,'').replace(/^i have /,'') + '.', correct: true },
+        { text: p.firstName + ' is a patient currently resting comfortably. No immediate concerns at this time.', correct: false },
+        { text: 'I need to discuss a medication query for one of the patients on the ward.', correct: false },
+      ]
+    },
+    B: {
+      label: 'Background',
+      color: '#f59e0b',
+      prompt: 'What is the relevant clinical background?',
+      options: [
+        { text: p.backstory + ' Admitted today. Mood on assessment: ' + p.mood + '. No recent procedure documented.', correct: true },
+        { text: 'Patient has no significant past medical history. Currently awaiting discharge planning.', correct: false },
+        { text: 'Background information not yet obtained. Patient declined to provide history.', correct: false },
+      ]
+    },
+    A: {
+      label: 'Assessment',
+      color: '#6366f1',
+      prompt: 'What do you think is happening based on your clinical findings?',
+      options: [
+        { text: 'Based on recorded vitals showing ' + vitalsStr + ', my nursing diagnosis is: ' + p.nanda.label + ' related to ' + p.nanda.related + '.', correct: true },
+        { text: 'Observations appear stable. I do not have concerns about the clinical trajectory at this time.', correct: false, flagIfCritical: p.urgency === 'red' },
+        { text: 'I am unsure of the clinical picture as I have not yet completed a full assessment.', correct: false },
+      ]
+    },
+    R: {
+      label: 'Recommendation',
+      color: '#10b981',
+      prompt: 'What action are you requesting?',
+      options: [
+        { text: recCorrect, correct: true },
+        { text: 'No immediate action required. I will continue to monitor and update at the next handover.', correct: false, flagIfCritical: p.urgency !== 'green' },
+        { text: 'Please arrange a routine outpatient follow-up appointment at your earliest convenience.', correct: false },
+      ]
+    },
+  };
+}
+
+function openSBAR(){
+  const p = currentPatient;
+  const w = wf();
+  if(w.sbarDone){ openInteractionMenu(p); return; }
+
+  const opts = buildSBAROptions(p, w);
+  const sections = document.getElementById('sbarSections');
+  sections.innerHTML = '';
+
+  Object.entries(opts).forEach(([key, sec]) => {
+    const div = document.createElement('div');
+    div.className = 'sbarSection';
+    div.id = 'sbarSec_' + key;
+
+    // Shuffle options
+    const shuffled = [...sec.options].sort(() => Math.random() - 0.5);
+
+    div.innerHTML =
+      '<h4><span class="sbarLetter" style="background:' + sec.color + '">' + key + '</span>' +
+      sec.label.toUpperCase() + ' <span style="font-size:9px;color:var(--c-text-3);font-weight:600;text-transform:none;letter-spacing:0">' + sec.prompt + '</span></h4>' +
+      '<div class="sbarOptions" id="sbarOpts_' + key + '">' +
+      shuffled.map((opt, i) => {
+        const id = 'sbarOpt_' + key + '_' + i;
+        return '<button class="sbarOpt" data-section="' + key + '" data-correct="' + opt.correct + '" data-flagcritical="' + (opt.flagIfCritical||false) + '" onclick="selectSBAROption(this)">' +
+          '<span class="sbarCheck">✓</span>' + opt.text + '</button>';
+      }).join('') +
+      '</div>' +
+      '<div class="sbarMissNote" id="sbarMiss_' + key + '">⚠ Please select a statement for this section.</div>';
+    sections.appendChild(div);
+  });
+
+  // Update preview when any option is selected
+  updateSBARPreview();
+  document.getElementById('sbarPreview').style.display = 'none';
+
+  hidePanels(); panelOpen = true;
+  document.getElementById('sbarPanel').style.display = 'block';
+}
+
+function selectSBAROption(btn){
+  const section = btn.dataset.section;
+  // Deselect others in same section
+  document.querySelectorAll('#sbarOpts_' + section + ' .sbarOpt').forEach(b => {
+    b.classList.remove('selected');
+    b.querySelector('.sbarCheck').textContent = '';
+  });
+  btn.classList.add('selected');
+  btn.querySelector('.sbarCheck').textContent = '✓';
+  document.getElementById('sbarMiss_' + section).style.display = 'none';
+  document.getElementById('sbarSec_' + section).classList.remove('incomplete');
+  updateSBARPreview();
+}
+
+function updateSBARPreview(){
+  const sections = ['S','B','A','R'];
+  const labels = {S:'Situation',B:'Background',A:'Assessment',R:'Recommendation'};
+  let lines = [];
+  sections.forEach(k => {
+    const sel = document.querySelector('#sbarOpts_' + k + ' .sbarOpt.selected');
+    if(sel) lines.push('<strong>' + k + ' — ' + labels[k] + ':</strong> ' + sel.textContent.replace('✓','').trim());
+  });
+  const preview = document.getElementById('sbarPreview');
+  if(lines.length > 0){
+    preview.innerHTML = lines.join('<br>');
+    preview.style.display = 'block';
+  }
+}
+
+function closeSBAR(){ openInteractionMenu(currentPatient); }
+
+function submitSBAR(){
+  const p = currentPatient;
+  const w = wf();
+  const sections = ['S','B','A','R'];
+  let allSelected = true;
+  let correctCount = 0;
+  let flagged = false;
+
+  sections.forEach(k => {
+    const sel = document.querySelector('#sbarOpts_' + k + ' .sbarOpt.selected');
+    if(!sel){
+      allSelected = false;
+      document.getElementById('sbarMiss_' + k).style.display = 'block';
+      document.getElementById('sbarSec_' + k).classList.add('incomplete');
+    } else {
+      const correct = sel.dataset.correct === 'true';
+      const flagCrit = sel.dataset.flagcritical === 'true';
+      w.sbarSelections[k] = {
+        text: sel.textContent.replace('✓','').trim(),
+        correct,
+        flagIfCritical: flagCrit,
+      };
+      if(correct) correctCount++;
+      if(flagCrit) flagged = true;
+    }
+  });
+
+  if(!allSelected){ showToast('Please complete all four sections of the SBAR handover.'); return; }
+
+  // Score
+  const sbarScore = correctCount * 3; // up to +12
+  score += sbarScore;
+  if(flagged) score -= 5; // penalise dangerously wrong recommendation
+
+  w.sbarDone = true;
+
+  // Feedback
+  let msg = '';
+  if(correctCount === 4){
+    msg = '<strong style="color:#4ade80">✓ Excellent SBAR handover.</strong> All four sections correctly completed. The receiving clinician has a clear clinical picture.';
+  } else if(correctCount >= 2){
+    msg = '<strong style="color:#fbbf24">⚠ Partial SBAR.</strong> ' + (4-correctCount) + ' section(s) were not optimal. A complete handover ensures patient safety at every transition of care.';
+  } else {
+    msg = '<strong style="color:#f87171">✗ Incomplete SBAR.</strong> Most sections were not appropriately completed. Review the SBAR framework — it is a core nursing communication tool.';
+  }
+  if(flagged){
+    msg += '<br><strong style="color:#f87171">⚠ Critical concern:</strong> Your recommendation did not reflect the urgency of this patient\'s condition. This is a patient safety issue.';
+  }
+
+  feedbackText.innerHTML = msg;
+  hidePanels(); panelOpen = true;
+  feedbackPanel.style.display = 'block';
+  feedbackTimer = 5;
+  setTimeout(() => {
+    feedbackPanel.style.display = 'none';
+    openInteractionMenu(p);
+  }, 5200);
+}
+function openDocumentation(){
+  const p = currentPatient;
+  const w = wf();
+
+  // Determine missed required vitals
+  const missedVitals = p.requiredVitals.filter(id => !w.vitalsChecked.has(id));
+  const missedCare   = p.requiredCare.filter(id => !w.careDone.has(id));
+
+  const warning = document.getElementById('docWarning');
+  warning.style.display = missedVitals.length > 0 ? 'block' : 'none';
+
+  const sections = document.getElementById('docSections');
+  sections.innerHTML = '';
+
+  // Vitals section
+  const vs = document.createElement('div');
+  vs.className = 'docSection';
+  vs.innerHTML = '<h4>📋 Vital Signs</h4>';
+  ALL_VITALS.forEach(v => {
+    const isRequired = p.requiredVitals.includes(v.id);
+    const recorded   = w.vitalsChecked.has(v.id);
+    const val        = w.vitalsValues[v.id] || null;
+    const row = document.createElement('div');
+    row.className = 'docRow';
+    let valHtml;
+    if(recorded){
+      valHtml = `<span class="dVal ok">${val}</span>`;
+    } else if(isRequired){
+      valHtml = `<span class="dVal missed">⚠ NOT RECORDED</span>`;
+    } else {
+      valHtml = `<span class="dVal" style="color:#475569">—</span>`;
+    }
+    row.innerHTML = `<span class="dLabel">${v.icon} ${v.name}</span>${valHtml}`;
+    vs.appendChild(row);
+  });
+  sections.appendChild(vs);
+
+  // SBAR section in documentation
+  const sbarSec = document.createElement('div');
+  sbarSec.className = 'docSection';
+  sbarSec.style.gridColumn = '1/-1';
+  sbarSec.innerHTML = '<h4>📢 SBAR Handover Summary</h4>';
+  const sbarLabels = {S:'Situation',B:'Background',A:'Assessment',R:'Recommendation'};
+  if(w.sbarDone && Object.keys(w.sbarSelections).length > 0){
+    Object.entries(w.sbarSelections).forEach(([k, sel]) => {
+      const row = document.createElement('div');
+      row.className = 'docRow';
+      const correct = sel.correct;
+      row.innerHTML =
+        '<span class="dLabel"><strong>' + k + '</strong> — ' + sbarLabels[k] + '</span>' +
+        '<span class="dVal ' + (correct?'ok':'warn') + '">' + (correct?'✓ Appropriate':'⚠ Review needed') + '</span>';
+      sbarSec.appendChild(row);
+    });
+  } else {
+    const row = document.createElement('div');
+    row.className = 'docRow';
+    row.innerHTML = '<span class="dLabel">SBAR Handover</span><span class="dVal warn">✗ Not completed</span>';
+    sbarSec.appendChild(row);
+  }
+  sections.appendChild(sbarSec);
+
+  // Care + Triage section
+  const cs = document.createElement('div');
+  cs.className = 'docSection';
+  cs.innerHTML = '<h4>🤝 Care & Clinical Decision</h4>';
+
+  // Medication
+  const mRow = document.createElement('div');
+  mRow.className = 'docRow';
+  mRow.innerHTML = `<span class="dLabel">💊 Medication Administered</span>
+    <span class="dVal ${w.medicationDone?'ok':'warn'}">${w.medicationDone?'✓ Done':'✗ Pending'}</span>`;
+  cs.appendChild(mRow);
+
+  // Care tasks
+  CARE_TASKS.forEach(task => {
+    const isRequired = p.requiredCare.includes(task.id);
+    const done = w.careDone.has(task.id);
+    const row = document.createElement('div');
+    row.className = 'docRow';
+    let valHtml;
+    if(done){
+      valHtml = `<span class="dVal ok">✓ Done</span>`;
+    } else if(isRequired){
+      valHtml = `<span class="dVal missed">⚠ NOT DONE</span>`;
+    } else {
+      valHtml = `<span class="dVal" style="color:#475569">—</span>`;
+    }
+    row.innerHTML = `<span class="dLabel">${task.icon} ${task.label}</span>${valHtml}`;
+    cs.appendChild(row);
+  });
+
+  // Triage / NANDA row
+  const tRow = document.createElement('div');
+  tRow.className = 'docRow';
+  tRow.style.flexDirection = 'column';
+  tRow.style.alignItems = 'flex-start';
+  tRow.style.gap = '4px';
+  if(w.nandaDone && w.nandaResult){
+    const nr = w.nandaResult;
+    tRow.innerHTML =
+      '<span class="dLabel">🩺 Nursing Diagnosis (NANDA)</span>' +
+      '<span class="dVal '+(nr.labelCorrect&&nr.relatedCorrect?'ok':'warn')+'" style="font-size:11px;white-space:normal;line-height:1.5">'+
+      nr.fullDiagnosis+'</span>';
+  } else {
+    tRow.innerHTML = '<span class="dLabel">🩺 Nursing Diagnosis (NANDA)</span><span class="dVal warn">✗ Not completed</span>';
+  }
+  cs.appendChild(tRow);
+
+  sections.appendChild(cs);
+
+  hidePanels(); panelOpen = true;
+  document.getElementById('docPanel').style.display = 'block';
+}
+
+function closeDoc(){ openInteractionMenu(currentPatient) }
+
+function signOffDoc(){
+  const w = wf();
+  const p = currentPatient;
+
+  // Penalty for missed vitals
+  const missedVitals = p.requiredVitals.filter(id => !w.vitalsChecked.has(id));
+  score -= missedVitals.length * 3;
+
+  // Penalty for missed care
+  const missedCare = p.requiredCare.filter(id => !w.careDone.has(id));
+  score -= missedCare.length * 2;
+
+  w.docDone = true;
+  p.completed = true;
+  completed++;
+  currentPatient = null;
+  hidePanels();
+
+  // Show summary feedback
+  let msg = '';
+  if(missedVitals.length > 0){
+    const names = missedVitals.map(id => ALL_VITALS.find(v=>v.id===id).name);
+    msg += `<strong style="color:#f87171">⚠ ${missedVitals.length} required vital(s) not recorded: ${names.join(', ')}.</strong> (-${missedVitals.length*3} pts)<br>`;
+  }
+  if(missedCare.length > 0){
+    const names = missedCare.map(id => CARE_TASKS.find(t=>t.id===id).label);
+    msg += `<strong style="color:#fbbf24">⚠ Care tasks incomplete: ${names.join(', ')}.</strong> (-${missedCare.length*2} pts)<br>`;
+  }
+  if(!msg) msg = '<strong style="color:#4ade80">✓ Excellent care delivery. Full documentation recorded.</strong>';
+
+  feedbackText.innerHTML = msg;
+  feedbackPanel.style.display = 'block';
+  panelOpen = true;
+  feedbackTimer = 5;
+
+  setTimeout(() => {
+    feedbackPanel.style.display = 'none';
+    panelOpen = false;
+    if(completed >= patients.length) setTimeout(endShift, 400);
+  }, 5200);
+}
+
+// ═══════════════════════════════════════════════════════
+// LEAVE ROOM
+// ═══════════════════════════════════════════════════════
+function tryExitRoom(){
+  const w = wf();
+  if(!w) return;
+  const p = currentPatient;
+  const sbarRequired = (p.urgency === 'red' || p.urgency === 'yellow');
+  const canExit = w.vitalsChecked.size > 0
+    && w.nandaDone
+    && w.medicationDone
+    && w.careDone.size > 0
+    && (!sbarRequired || w.sbarDone)
+    && w.docDone;
+  if(canExit){
+    hidePanels();
+    currentPatient = null;
+  } else {
+    showToast('Ensure all care obligations are fulfilled before handover.');
+  }
+}
+
+// Step Away — release player without completing patient
+// Progress preserved; deterioration timer resumes immediately
+let stepAwayPatientIdx = -1;    // which patient we just stepped away from
+let stepAwayCooldown   = 0;     // frames to suppress re-collision
+
+function stepAway(){
+  const p = currentPatient;
+  if(!p) return;
+  stepAwayPatientIdx = p.idx;
+  stepAwayCooldown   = 60;       // suppress for 60 frames (~1 second)
+  hidePanels();
+  currentPatient = null;
+  flash = {alpha:.12, color:'#f59e0b'};
+}
+
+
+let toastTimer = null;
+function showToast(msg){
+  exitToast.textContent = '⚕ ' + msg;
+  exitToast.style.display = 'block';
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => exitToast.style.display='none', 3000);
+}
+
+let equipToastTimerID = null;
+function showEquipToast(msg){
+  const el = document.getElementById('equipToast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  if(equipToastTimerID) clearTimeout(equipToastTimerID);
+  equipToastTimerID = setTimeout(() => el.style.display='none', 3200);
+}
+
+// ═══════════════════════════════════════════════════════
+// SOUND (Web Audio API)
+// ═══════════════════════════════════════════════════════
+let audioCtx = null;
+function getAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx }
+
+function playBeep(freq=660){
+  try {
+    const ac = getAudio();
+    const o = ac.createOscillator(); const g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(.18, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.3);
+    o.start(); o.stop(ac.currentTime+0.3);
+  } catch(e){}
+}
+
+function playChime(){
+  try {
+    const ac = getAudio();
+    [523,659,784,1047].forEach((freq,i) => {
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value = freq; o.type = 'sine';
+      const t = ac.currentTime + i*0.15;
+      g.gain.setValueAtTime(.2, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+      o.start(t); o.stop(t+0.5);
+    });
+  } catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+// DRAW HELPERS
+// ═══════════════════════════════════════════════════════
+function rr(x,y,w,h,r,fill,stroke){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke) ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════
+// ROOM DRAWING — detailed hospital interior
+// ═══════════════════════════════════════════════════════
+
+// Thin drop shadow for furniture
+function fShadow(x,y,w,h,r=8){
+  ctx.save(); ctx.globalAlpha=.14;
+  ctx.fillStyle='#0f172a';
+  rr(x+5,y+6,w,h,r,true,false);
+  ctx.restore();
+}
+
+function zone(x,y,w,h,fill,border,label,labelColor){
+  // Zone fill with subtle gradient-like second layer
+  ctx.fillStyle=fill; rr(x,y,w,h,14,true,false);
+  // Inner border tint
+  ctx.strokeStyle=border; ctx.lineWidth=1.5;
+  rr(x+3,y+3,w-6,h-6,12,false,true);
+  ctx.lineWidth=1;
+  // Zone label — top left tab
+  ctx.fillStyle=border;
+  rr(x+12,y-1,ctx.measureText(label).width+18,20,6,true,false);
+  ctx.fillStyle=labelColor||'#fff';
+  ctx.font='bold 11px Inter,Arial';
+  ctx.fillText(label,x+21,y+13);
+}
+
+function bed(x,y,label){
+  const W=112,H=62;
+  fShadow(x,y,W,H,14);
+  // Frame
+  ctx.fillStyle='#cbd5e1'; rr(x,y,W,H,14,true,false);
+  // Mattress
+  ctx.fillStyle='#f1f5f9'; rr(x+5,y+5,W-10,H-10,10,true,false);
+  // Pillow
+  ctx.fillStyle='#fff';
+  rr(x+8,y+8,32,40,8,true,false);
+  ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=1;
+  rr(x+8,y+8,32,40,8,false,true);
+  // Pillow crease
+  ctx.strokeStyle='#f0f0f0'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x+24,y+10); ctx.lineTo(x+24,y+46); ctx.stroke();
+  // Blanket/sheet
+  ctx.fillStyle='#bfdbfe'; rr(x+45,y+8,W-53,H-16,8,true,false);
+  // Blanket fold line
+  ctx.strokeStyle='#93c5fd'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x+45,y+22); ctx.lineTo(x+W-8,y+22); ctx.stroke();
+  // Bed frame border
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=2;
+  rr(x,y,W,H,14,false,true);
+  // Headboard (left)
+  ctx.fillStyle='#e2e8f0'; rr(x,y,14,H,8,true,false);
+  ctx.fillStyle='#cbd5e1'; rr(x+3,y+10,8,H-20,4,true,false);
+  // Footboard (right)
+  ctx.fillStyle='#e2e8f0'; rr(x+W-14,y,14,H,8,true,false);
+  // Bed label
+  ctx.fillStyle='#64748b'; ctx.font='bold 10px Inter,Arial';
+  ctx.fillText(label, x+W/2 - ctx.measureText(label).width/2, y+H+14);
+  ctx.lineWidth=1;
+}
+
+function desk(x,y){
+  const W=176,H=70;
+  fShadow(x,y,W,H,12);
+  // Desk surface — warm wood
+  ctx.fillStyle='#d97706'; rr(x,y,W,H,12,true,false);
+  ctx.fillStyle='#b45309'; rr(x+3,y+3,W-6,H-6,10,true,false);
+  // Wood grain lines
+  ctx.strokeStyle='#92400e'; ctx.lineWidth=.8; ctx.globalAlpha=.3;
+  for(let i=0;i<4;i++){
+    ctx.beginPath(); ctx.moveTo(x+20+i*30,y+6); ctx.lineTo(x+15+i*30,y+H-6); ctx.stroke();
+  }
+  ctx.globalAlpha=1; ctx.lineWidth=1;
+  // Monitor
+  ctx.fillStyle='#1e293b'; rr(x+14,y+10,80,36,6,true,false);
+  ctx.fillStyle='#0f172a'; rr(x+16,y+12,76,32,5,true,false);
+  // Screen glow
+  ctx.fillStyle='#38bdf8'; ctx.globalAlpha=.7;
+  rr(x+18,y+14,72,28,4,true,false);
+  ctx.globalAlpha=1;
+  // Screen content lines
+  ctx.fillStyle='#fff'; ctx.globalAlpha=.6;
+  ctx.fillRect(x+22,y+18,30,2); ctx.fillRect(x+22,y+23,50,1.5);
+  ctx.fillRect(x+22,y+27,40,1.5); ctx.fillRect(x+22,y+32,25,1.5);
+  ctx.globalAlpha=1;
+  // Monitor stand
+  ctx.fillStyle='#334155'; ctx.fillRect(x+48,y+46,8,10);
+  ctx.fillRect(x+42,y+54,20,4);
+  // Phone
+  ctx.fillStyle='#475569'; rr(x+105,y+14,30,22,4,true,false);
+  ctx.fillStyle='#64748b'; rr(x+108,y+17,24,14,3,true,false);
+  // Desk edge border
+  ctx.strokeStyle='#b45309'; ctx.lineWidth=2;
+  rr(x,y,W,H,12,false,true);
+  ctx.lineWidth=1;
+  // "NURSES STATION" sign above
+  ctx.fillStyle='#0c4a6e'; rr(x+20,y-18,136,16,4,true,false);
+  ctx.fillStyle='#7dd3fc'; ctx.font='bold 9px Inter,Arial';
+  ctx.fillText('NURSES STATION', x+28, y-6);
+}
+
+function chairs(x,y){
+  for(let i=0;i<3;i++){
+    const cx=x+i*50;
+    fShadow(cx,y+2,36,36,8);
+    // Chair seat
+    ctx.fillStyle='#8b5cf6'; rr(cx,y,36,36,8,true,false);
+    // Seat highlight
+    ctx.fillStyle='#a78bfa'; rr(cx+4,y+4,20,14,5,true,false);
+    // Chair legs
+    ctx.fillStyle='#6d28d9';
+    ctx.fillRect(cx+4,y+32,5,10); ctx.fillRect(cx+27,y+32,5,10);
+    // Border
+    ctx.strokeStyle='#7c3aed'; ctx.lineWidth=1.5;
+    rr(cx,y,36,36,8,false,true);
+    ctx.lineWidth=1;
+  }
+}
+
+function plant(x,y){
+  // Pot with detail
+  fShadow(x+4,y+26,26,28,4);
+  ctx.fillStyle='#92400e'; rr(x+2,y+28,22,20,4,true,false);
+  ctx.fillStyle='#a16207'; rr(x+4,y+26,18,6,3,true,false);
+  // Soil
+  ctx.fillStyle='#713f12'; rr(x+4,y+30,18,6,2,true,false);
+  // Leaves — multiple layers for depth
+  ctx.fillStyle='#14532d';
+  ctx.beginPath(); ctx.arc(x+8,y+22,10,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+20,y+18,11,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#166534';
+  ctx.beginPath(); ctx.arc(x+14,y+14,12,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+6,y+15,8,0,Math.PI*2); ctx.fill();
+  // Highlight leaf
+  ctx.fillStyle='#16a34a';
+  ctx.beginPath(); ctx.arc(x+16,y+12,7,0,Math.PI*2); ctx.fill();
+  // Pot highlight
+  ctx.fillStyle='rgba(255,255,255,.15)'; rr(x+5,y+28,8,4,2,true,false);
+}
+
+function windowPane(x,y,w=80,h=60){
+  fShadow(x,y,w,h,6);
+  // Frame
+  ctx.fillStyle='#e2e8f0'; rr(x,y,w,h,6,true,false);
+  // Glass — sky blue
+  ctx.fillStyle='#bae6fd'; rr(x+5,y+5,w-10,h-10,4,true,false);
+  // Window panes
+  ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x+w/2,y+5); ctx.lineTo(x+w/2,y+h-5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+5,y+h/2); ctx.lineTo(x+w-5,y+h/2); ctx.stroke();
+  // Light reflection
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.moveTo(x+8,y+8); ctx.lineTo(x+w/2-4,y+8);
+  ctx.lineTo(x+w/2-4,y+h/2-4); ctx.lineTo(x+8,y+h/2-4); ctx.closePath(); ctx.fill();
+  ctx.lineWidth=1;
+}
+
+function clockOnWall(x,y){
+  ctx.fillStyle='#f1f5f9';
+  ctx.beginPath(); ctx.arc(x,y,16,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,16,0,Math.PI*2); ctx.stroke();
+  // Tick marks
+  ctx.fillStyle='#64748b';
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2-Math.PI/2;
+    const r=i%3===0?11:13;
+    ctx.beginPath(); ctx.arc(x+Math.cos(a)*r, y+Math.sin(a)*r, i%3===0?2:1, 0, Math.PI*2); ctx.fill();
+  }
+  // Hands
+  ctx.strokeStyle='#1e293b'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+7,y-5); ctx.stroke();
+  ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-3,y+8); ctx.stroke();
+  ctx.lineWidth=1;
+  ctx.fillStyle='#ef4444'; ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.fill();
+}
+
+function emergencySign(x,y){
+  ctx.fillStyle='#dc2626'; rr(x,y,64,20,4,true,false);
+  ctx.fillStyle='#fff'; ctx.font='bold 10px Inter,Arial';
+  ctx.fillText('EMERGENCY', x+5, y+14);
+}
+
+function sinkUnit(x,y){
+  fShadow(x,y+8,60,30,6);
+  ctx.fillStyle='#e2e8f0'; rr(x,y,60,36,6,true,false);
+  ctx.fillStyle='#f8fafc'; rr(x+8,y+6,44,24,4,true,false);
+  // Basin
+  ctx.fillStyle='#bae6fd'; rr(x+14,y+10,32,16,6,true,false);
+  // Tap
+  ctx.fillStyle='#94a3b8'; rr(x+26,y+6,8,8,2,true,false);
+  ctx.fillStyle='#475569'; rr(x+29,y+4,2,4,1,true,false);
+  // Soap dispenser
+  ctx.fillStyle='#fbbf24'; rr(x+48,y+4,8,18,3,true,false);
+}
+
+function drawRoom(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // ── Outer wall / building shell ──
+  ctx.fillStyle='#c8d6e5';
+  rr(30,30,1060,634,22,true,false);
+
+  // ── Floor — warm off-white tile ──
+  ctx.fillStyle='#f0f4f8';
+  rr(44,44,1032,606,16,true,false);
+
+  // ── Floor tile grid ──
+  ctx.strokeStyle='rgba(180,195,215,.35)'; ctx.lineWidth=1;
+  for(let x=44;x<1076;x+=44){ ctx.beginPath();ctx.moveTo(x,44);ctx.lineTo(x,650);ctx.stroke(); }
+  for(let y=44;y<650;y+=44){ ctx.beginPath();ctx.moveTo(44,y);ctx.lineTo(1076,y);ctx.stroke(); }
+
+  // ── Zone fills — richer tones ──
+  zone(52,52,456,290,'rgba(219,234,254,.7)','rgba(147,197,253,.6)','WARD A','#1e3a5f');
+  zone(610,52,434,290,'rgba(204,251,241,.7)','rgba(94,234,212,.5)','WAITING AREA','#134e4a');
+  zone(52,402,456,228,'rgba(253,244,255,.7)','rgba(216,180,254,.5)','OBSERVATION ROOM','#4c1d95');
+  zone(610,402,434,228,'rgba(240,253,244,.7)','rgba(134,239,172,.5)','WARD B','#14532d');
+
+  // ── Corridor floors — slightly different tone ──
+  ctx.fillStyle='rgba(241,245,249,.85)';
+  ctx.fillRect(508,52,84,598);
+  ctx.fillRect(52,342,1026,66);
+  // Corridor centre line
+  ctx.strokeStyle='rgba(148,163,184,.3)'; ctx.lineWidth=2; ctx.setLineDash([12,8]);
+  ctx.beginPath(); ctx.moveTo(550,52); ctx.lineTo(550,342); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(550,408); ctx.lineTo(550,650); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(52,375); ctx.lineTo(508,375); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(610,375); ctx.lineTo(1076,375); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth=1;
+
+  // ── Walls — thick, with depth shadow inside ──
+  // Inner wall shadow
+  ctx.fillStyle='rgba(0,0,0,.06)';
+  ctx.fillRect(44,44,1032,12); ctx.fillRect(44,44,12,606);
+  ctx.fillRect(44,638,1032,12); ctx.fillRect(1068,44,12,606);
+  // Main walls
+  ctx.strokeStyle='#64748b'; ctx.lineWidth=11;
+  rr(44,44,1032,606,18,false,true);
+  // Interior partition walls
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=8;
+  ctx.beginPath();
+  ctx.moveTo(508,44); ctx.lineTo(508,330);
+  ctx.moveTo(592,44); ctx.lineTo(592,330);
+  ctx.moveTo(508,418); ctx.lineTo(508,650);
+  ctx.moveTo(592,418); ctx.lineTo(592,650);
+  ctx.moveTo(44,342); ctx.lineTo(500,342);
+  ctx.moveTo(600,342); ctx.lineTo(1076,342);
+  ctx.moveTo(44,408); ctx.lineTo(500,408);
+  ctx.moveTo(600,408); ctx.lineTo(1076,408);
+  ctx.stroke();
+  ctx.lineWidth=1;
+
+  // ── Doorways ── (openings in walls with door frames)
+  // Ward A door
+  ctx.fillStyle='#f0f4f8'; ctx.fillRect(508,270,84,72);
+  ctx.fillStyle='rgba(241,245,249,.85)'; ctx.fillRect(508,342,84,66);
+  // Door frame
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(508,270); ctx.lineTo(508,330); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(592,270); ctx.lineTo(592,330); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(508,418); ctx.lineTo(508,480); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(592,418); ctx.lineTo(592,480); ctx.stroke();
+  ctx.lineWidth=1;
+
+  // ── Windows on outer walls ──
+  windowPane(66,100);  windowPane(66,220);  // Ward A
+  windowPane(66,440);  windowPane(66,530);  // Obs
+  windowPane(990,100); windowPane(990,220); // Waiting
+  windowPane(990,440); windowPane(990,530); // Ward B
+
+  // ── Furniture ──
+  // Ward A beds
+  bed(110,140,'Bed 1');
+  bed(310,140,'Bed 2');
+  // Obs bed
+  bed(130,440,'Obs Bed');
+  // Ward B beds
+  bed(638,450,'Bed 3');
+  bed(840,450,'Bed 4');
+
+  // Nurses station
+  desk(740,130);
+  // Waiting area chairs
+  chairs(618,240); chairs(760,240); chairs(880,240);
+
+  // Sinks
+  sinkUnit(66,290); sinkUnit(600,540);
+
+  // Plants
+  plant(450,60);   // Ward A corner
+  plant(1010,60);  // Waiting area corner
+  plant(450,490);  // Obs room corner
+  plant(1010,500); // Ward B corner
+
+  // Clocks
+  clockOnWall(300,58); clockOnWall(830,58);
+
+  // Emergency sign
+  emergencySign(462,374);
+
+  // ── Zone-specific details ──
+  // Obs room — heart monitor on wall
+  ctx.fillStyle='#1e293b'; rr(58,405,80,50,6,true,false);
+  ctx.fillStyle='#0f172a'; rr(61,408,74,44,4,true,false);
+  ctx.strokeStyle='#22c55e'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(64,430); ctx.lineTo(74,430); ctx.lineTo(80,420);
+  ctx.lineTo(86,440); ctx.lineTo(92,422); ctx.lineTo(98,430); ctx.lineTo(130,430);
+  ctx.stroke();
+  ctx.fillStyle='#22c55e'; ctx.font='bold 8px Inter,Arial';
+  ctx.fillText('MONITOR', 68, 446); ctx.lineWidth=1;
+
+  // Entrance label + arrow
+  ctx.fillStyle='rgba(30,41,59,.75)';
+  rr(56,626,100,18,6,true,false);
+  ctx.fillStyle='#f1f5f9'; ctx.font='bold 11px Inter,Arial';
+  ctx.fillText('▲ ENTRANCE',62,639);
+
+  // ── Acuity board mount bracket ──
+  if(gameState==='playing'||gameState==='end'){
+    ctx.fillStyle='rgba(100,116,139,.6)';
+    ctx.fillRect(620,46,8,8); ctx.fillRect(708,46,8,8);
+    ctx.fillRect(610,50,120,4);
+  }
+
+  // ── Equipment drawn on top of room ──
+  if(gameState==='playing'||gameState==='end') drawEquipment();
+}
+
+function drawEquipment(){
+  EQUIPMENT_DEFS.forEach(eq => {
+    const collected = collectedEquipment.has(eq.id);
+    eq.pulse += 0.06;
+    const p = (Math.sin(eq.pulse)+1)/2;
+
+    // Check if any patient needs this equipment right now
+    const needed = patients.some(pt =>
+      !pt.completed &&
+      pt.requiredVitals.some(vid => eq.unlocks.includes(vid) && !patientWorkflow[pt.idx]?.vitalsChecked.has(vid))
+    );
+
+    if(!collected){
+      // Glow — brighter when needed by a patient
+      ctx.globalAlpha = needed ? 0.15 + p*0.22 : 0.07 + p*0.08;
+      ctx.fillStyle = eq.color;
+      ctx.beginPath();ctx.arc(eq.x+22,eq.y+20,32+p*6,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Box
+    ctx.fillStyle = collected ? 'rgba(34,197,94,.12)' : 'rgba(255,255,255,.08)';
+    rr(eq.x, eq.y, eq.w, eq.h, 10, true, false);
+    ctx.strokeStyle = collected ? '#22c55e' : (needed ? eq.color : 'rgba(255,255,255,.2)');
+    ctx.lineWidth = collected ? 2 : (needed ? 2.5 : 1.5);
+    rr(eq.x, eq.y, eq.w, eq.h, 10, false, true);
+
+    // Icon
+    ctx.font = '22px Arial';
+    ctx.fillText(eq.icon, eq.x+10, eq.y+26);
+
+    // Collected checkmark
+    if(collected){
+      ctx.fillStyle = '#22c55e'; ctx.font = 'bold 13px Inter,Arial';
+      ctx.fillText('✓', eq.x+32, eq.y+14);
+    }
+
+    // Label below
+    ctx.fillStyle = collected ? '#4ade80' : (needed ? '#fbbf24' : '#94a3b8');
+    ctx.font = `bold 10px Inter,Arial`;
+    ctx.fillText(eq.label, eq.x - 4, eq.y + eq.h + 14);
+
+    // Proximity prompt (walk here)
+    if(!collected){
+      const dist = Math.hypot((player.x+15)-(eq.x+22),(player.y+22)-(eq.y+20));
+      if(dist < 60 && !panelOpen && gameState==='playing'){
+        ctx.fillStyle='rgba(15,23,42,.9)'; rr(eq.x-20,eq.y-34,eq.w+40,24,8,true,false);
+        ctx.fillStyle='#fff'; ctx.font='bold 11px Inter,Arial';
+        ctx.fillText('Walk over to collect',eq.x-14,eq.y-17);
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// ACUITY BOARD — top-left of Waiting Area (x608, y98)
+// Fits between vertical corridor (x=600) and desk (x=735)
+// Width=120px, rows show: urgency strip | name | wait | dots
+// ═══════════════════════════════════════════════════════
+const BOARD = { x:610, y:58, w:120, rowH:25, padY:28 };
+
+function drawAcuityBoard(){
+  if(!patients.length) return;
+
+  const bx=BOARD.x, by=BOARD.y, bw=BOARD.w, rH=BOARD.rowH, pY=BOARD.padY;
+  const bh = pY + patients.length * rH + 10;
+
+  // Backing
+  ctx.fillStyle='rgba(248,250,252,.95)';
+  rr(bx,by,bw,bh,8,true,false);
+  ctx.strokeStyle='rgba(100,116,139,.28)';
+  ctx.lineWidth=1.5;
+  rr(bx,by,bw,bh,8,false,true);
+  ctx.lineWidth=1;
+
+  // Header bar
+  ctx.fillStyle='#1e293b';
+  rr(bx,by,bw,22,8,true,false);
+  ctx.fillRect(bx,by+10,bw,12); // square bottom corners
+  ctx.fillStyle='#f1f5f9';
+  ctx.font='bold 10px Inter,Arial';
+  ctx.fillText('ACUITY BOARD',bx+8,by+15);
+
+  // Done badge top-right
+  const doneN=patients.filter(p=>p.completed).length;
+  const badge=doneN+'/'+patients.length;
+  ctx.font='bold 9px Inter,Arial';
+  const badgeW=ctx.measureText(badge).width+7;
+  ctx.fillStyle='rgba(16,185,129,.22)';
+  rr(bx+bw-badgeW-3,by+5,badgeW,12,4,true,false);
+  ctx.fillStyle='#6ee7b7';
+  ctx.fillText(badge,bx+bw-badgeW,by+14);
+
+  // Column labels
+  ctx.fillStyle='rgba(71,85,105,.55)';
+  ctx.font='8px Inter,Arial';
+  ctx.fillText('PATIENT',bx+9,by+pY-2);
+  ctx.fillText('W',bx+bw-14,by+pY-2);
+
+  // Thin rule
+  ctx.strokeStyle='rgba(100,116,139,.18)';
+  ctx.beginPath();
+  ctx.moveTo(bx+5,by+pY+1);
+  ctx.lineTo(bx+bw-5,by+pY+1);
+  ctx.stroke();
+
+  // Rows
+  patients.forEach((p,i)=>{
+    const w=patientWorkflow[p.idx];
+    const ry=by+pY+4+i*rH;
+
+    // Alt row bg
+    if(i%2===0){ ctx.fillStyle='rgba(15,23,42,.025)'; ctx.fillRect(bx+3,ry-1,bw-6,rH-1); }
+
+    // Overdue blink
+    if(!p.completed){
+      const thr={red:30,yellow:55,green:120}[w.originalUrgency]||120;
+      if(w.waitTime>thr&&Math.sin(Date.now()/300)>0){
+        ctx.fillStyle='rgba(239,68,68,.09)';
+        ctx.fillRect(bx+3,ry-1,bw-6,rH-1);
+      }
+    }
+
+    // Urgency strip
+    ctx.fillStyle=p.completed?'#10b981':uColor(p.urgency);
+    ctx.fillRect(bx+4,ry+3,2.5,rH-8);
+
+    // Name
+    const nameStr=p.firstName+', '+p.age;
+    ctx.font=(p.completed?'':'bold ')+'10px Inter,Arial';
+    ctx.fillStyle=p.completed?'#94a3b8':'#1e293b';
+    // Clip name to avoid overflow
+    ctx.save();
+    ctx.rect(bx+9,ry-1,bw-28,rH);
+    ctx.clip();
+    ctx.fillText(nameStr,bx+9,ry+12);
+    ctx.restore();
+
+    if(p.completed){
+      // Strikethrough
+      const sw=Math.min(ctx.measureText(nameStr).width,bw-28);
+      ctx.strokeStyle='rgba(100,116,139,.4)';
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(bx+9,ry+7);ctx.lineTo(bx+9+sw,ry+7);ctx.stroke();
+      ctx.fillStyle='#10b981';ctx.font='bold 11px Inter,Arial';
+      ctx.fillText('✓',bx+bw-13,ry+13);
+      return;
+    }
+
+    // Wait time
+    const ws=Math.floor(w.waitTime);
+    const thr={red:30,yellow:55,green:120}[w.originalUrgency]||120;
+    const wStr=ws>=60?Math.floor(ws/60)+'m'+(ws%60?ws%60+'s':''):ws+'s';
+    ctx.fillStyle=ws>thr?'#ef4444':ws>thr*.65?'#f59e0b':'#94a3b8';
+    ctx.font='bold 9px Inter,Arial';
+    ctx.fillText(wStr,bx+bw-ctx.measureText(wStr).width-4,ry+12);
+
+    // 5 workflow dots — V M C T D
+    const steps=[w.vitalsChecked.size>0,w.nandaDone,w.medicationDone,w.careDone.size>0,w.sbarDone,w.docDone];
+    const dotCols=['#38bdf8','#10b981','#a78bfa','#f59e0b','#6366f1'];
+    steps.forEach((done,si)=>{
+      ctx.fillStyle=done?dotCols[si]:'rgba(100,116,139,.2)';
+      ctx.beginPath();
+      ctx.arc(bx+9+si*10,ry+22,3,0,Math.PI*2);
+      ctx.closePath();ctx.fill();
+    });
+
+    // Mood colour dot
+    ctx.globalAlpha=.65;
+    ctx.fillStyle=moodColor(p.mood);
+    ctx.beginPath();ctx.arc(bx+bw-6,ry+22,2.5,0,Math.PI*2);ctx.closePath();ctx.fill();
+    ctx.globalAlpha=1;
+  });
+
+  // Legend
+  ctx.fillStyle='rgba(100,116,139,.4)';
+  ctx.font='7px Inter,Arial';
+  ctx.fillText('V  N  M  C  S  D',bx+7,by+bh-2);
+}
+
+
+function drawRoom(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#dbeafe'; rr(36,36,1048,620,24,true,false);
+  ctx.strokeStyle='rgba(148,163,184,.18)'; ctx.lineWidth=1;
+  for(let x=52;x<1070;x+=38){ctx.beginPath();ctx.moveTo(x,52);ctx.lineTo(x,640);ctx.stroke()}
+  for(let y=52;y<640;y+=38){ctx.beginPath();ctx.moveTo(52,y);ctx.lineTo(1070,y);ctx.stroke()}
+  zone(78,90,440,265,'#e0f2fe','Ward A');
+  zone(600,90,420,265,'#ecfeff','Waiting Area');
+  zone(78,410,440,190,'#fdf2f8','Observation Room');
+  zone(600,410,420,190,'#f0fdf4','Ward B');
+  ctx.fillStyle='#f8fafc';
+  ctx.fillRect(518,62,82,585);ctx.fillRect(58,355,1005,55);
+  ctx.strokeStyle='#64748b'; ctx.lineWidth=10;
+  rr(44,44,1032,600,20,false,true);
+  ctx.beginPath();
+  ctx.moveTo(518,60);ctx.lineTo(518,338);ctx.moveTo(600,60);ctx.lineTo(600,338);
+  ctx.moveTo(518,426);ctx.lineTo(518,642);ctx.moveTo(600,426);ctx.lineTo(600,642);
+  ctx.moveTo(52,355);ctx.lineTo(488,355);ctx.moveTo(630,355);ctx.lineTo(1068,355);
+  ctx.moveTo(52,410);ctx.lineTo(488,410);ctx.moveTo(630,410);ctx.lineTo(1068,410);
+  ctx.stroke();
+  bed(150,170,'Bed 1'); bed(325,170,'Bed 2'); bed(175,470,'Obs');
+  bed(680,475,'Bed 3'); bed(845,475,'Bed 4');
+  desk(735,150); chairs(660,245); chairs(845,245);
+  plant(105,120); plant(985,560);
+  ctx.fillStyle='rgba(15,23,42,.7)'; ctx.font='bold 13px Inter,Arial';
+  ctx.fillText('ENTRANCE',72,633);
+
+  // ── Board wall mount bracket ──
+  if(gameState==='playing'||gameState==='end'){
+    ctx.fillStyle='rgba(100,116,139,.5)';
+    ctx.fillRect(626,92,8,8); ctx.fillRect(700,92,8,8); // two pegs
+    ctx.fillRect(608,95,120,4); // rail
+  }
+
+  // Equipment drawn on top of room
+  if(gameState==='playing'||gameState==='end') drawEquipment();
+}
+
+// ═══════════════════════════════════════════════════════
+// CHARACTER RENDERING — detailed pixel-art style sprites
+// Each character is ~36px wide × 60px tall
+// Origin point (x,y) is top-left of bounding box
+// ═══════════════════════════════════════════════════════
+
+function drawShadow(x, y, w=20, a=.18){
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(x, y, w, 5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHead(x, y, skinColor, hairColor, hairStyle){
+  // Neck
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(x-3, y+13, 6, 6);
+
+  // Head
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.arc(x, y+6, 10, 0, Math.PI*2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = hairColor;
+  if(hairStyle === 'short'){
+    ctx.beginPath();
+    ctx.arc(x, y+4, 10, Math.PI, Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(x-10, y+3, 20, 4);
+  } else if(hairStyle === 'long'){
+    ctx.beginPath();
+    ctx.arc(x, y+4, 10, Math.PI, Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(x-10, y+3, 4, 14); // left
+    ctx.fillRect(x+6,  y+3, 4, 14); // right
+  } else if(hairStyle === 'curly'){
+    ctx.beginPath();
+    ctx.arc(x, y+3, 11, Math.PI, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x-9, y+6, 4, 0, Math.PI*2);
+    ctx.arc(x+9, y+6, 4, 0, Math.PI*2);
+    ctx.fill();
+  } else if(hairStyle === 'bun'){
+    ctx.beginPath();
+    ctx.arc(x, y+4, 10, Math.PI, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x+5, y-4, 5, 0, Math.PI*2);
+    ctx.fill();
+  } else if(hairStyle === 'cap'){
+    // Nurse cap
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(x, y+3, 10, Math.PI, Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(x-12, y+2, 24, 4);
+    // Red cross on cap
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(x-1, y-5, 2, 8);
+    ctx.fillRect(x-4, y-2, 8, 2);
+  }
+
+  // Ears
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.arc(x-10, y+7, 3, 0, Math.PI*2);
+  ctx.arc(x+10, y+7, 3, 0, Math.PI*2);
+  ctx.fill();
+
+  // Eyes (whites + pupils)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(x-4, y+6, 3, 2.5, 0, 0, Math.PI*2);
+  ctx.ellipse(x+4, y+6, 3, 2.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.arc(x-4, y+6, 1.5, 0, Math.PI*2);
+  ctx.arc(x+4, y+6, 1.5, 0, Math.PI*2);
+  ctx.fill();
+  // Eye shine
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x-3.3, y+5.3, 0.7, 0, Math.PI*2);
+  ctx.arc(x+4.7, y+5.3, 0.7, 0, Math.PI*2);
+  ctx.fill();
+
+  // Mouth
+  ctx.strokeStyle = '#92400e';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y+10, 3, 0.2, Math.PI-0.2);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+}
+
+// ── PLAYER (Nurse) ─────────────────────────────────────
+function drawPlayerSprite(x, y, bob){
+  const cx = x + 18; // centre x
+  drawShadow(cx, y+62, 22);
+
+  // Legs — navy trousers
+  ctx.fillStyle = '#1e3a5f';
+  rr(cx-9, y+40+bob, 8, 20, 3, true, false);
+  rr(cx+1,  y+40+bob, 8, 20, 3, true, false);
+  // Shoes
+  ctx.fillStyle = '#0f172a';
+  rr(cx-11, y+57+bob, 10, 6, 3, true, false);
+  rr(cx+1,  y+57+bob, 10, 6, 3, true, false);
+
+  // Body — royal blue scrub top
+  ctx.fillStyle = '#1d4ed8';
+  rr(cx-12, y+18+bob, 24, 24, 7, true, false);
+  // Scrub top highlight
+  ctx.fillStyle = '#2563eb';
+  rr(cx-10, y+20+bob, 10, 20, 5, true, false);
+  // Pocket
+  ctx.fillStyle = '#1e40af';
+  rr(cx+3, y+26+bob, 7, 8, 2, true, false);
+
+  // Stethoscope around neck
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, y+22+bob, 5, 0, Math.PI);
+  ctx.stroke();
+  ctx.fillStyle = '#475569';
+  ctx.beginPath();
+  ctx.arc(cx-5, y+22+bob, 2, 0, Math.PI*2);
+  ctx.arc(cx+5, y+22+bob, 2, 0, Math.PI*2);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = '#1d4ed8';
+  rr(cx-17, y+20+bob, 7, 18, 3, true, false);
+  rr(cx+10, y+20+bob, 7, 18, 3, true, false);
+  // Hands
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath();
+  ctx.arc(cx-13, y+38+bob, 4, 0, Math.PI*2);
+  ctx.arc(cx+13, y+38+bob, 4, 0, Math.PI*2);
+  ctx.fill();
+  // Clipboard in right hand
+  ctx.fillStyle = '#f8fafc';
+  rr(cx+10, y+34+bob, 7, 9, 1, true, false);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(cx+11, y+36+bob, 5, 1);
+  ctx.fillRect(cx+11, y+38+bob, 5, 1);
+  ctx.fillRect(cx+11, y+40+bob, 3, 1);
+
+  // Head (nurse cap style)
+  drawHead(cx, y+10+bob, '#fde68a', '#1c1917', 'cap');
+
+  // ID badge
+  ctx.fillStyle = '#38bdf8';
+  rr(cx-10, y+22+bob, 5, 7, 1, true, false);
+  ctx.fillStyle = '#fff';
+  ctx.font = '4px Inter,Arial';
+  ctx.fillText('RN', cx-9.5, y+27+bob);
+}
+
+// ── MAYA (Senior Nurse) ────────────────────────────────
+function drawMayaSprite(x, y, bob){
+  const cx = x + 16;
+  drawShadow(cx, y+60, 20);
+
+  // Legs — dark teal trousers
+  ctx.fillStyle = '#134e4a';
+  rr(cx-8, y+38+bob, 7, 20, 3, true, false);
+  rr(cx+1,  y+38+bob, 7, 20, 3, true, false);
+  // Shoes
+  ctx.fillStyle = '#0f2027';
+  rr(cx-10, y+55+bob, 9, 6, 3, true, false);
+  rr(cx+1,  y+55+bob, 9, 6, 3, true, false);
+
+  // Body — teal scrub top (senior)
+  ctx.fillStyle = '#0e7490';
+  rr(cx-11, y+17+bob, 22, 23, 7, true, false);
+  ctx.fillStyle = '#0891b2';
+  rr(cx-9, y+19+bob, 9, 19, 5, true, false);
+  // Senior badge strip on shoulder
+  ctx.fillStyle = '#fbbf24';
+  rr(cx-11, y+17+bob, 22, 4, 3, true, false);
+
+  // Arms
+  ctx.fillStyle = '#0e7490';
+  rr(cx-15, y+19+bob, 6, 17, 3, true, false);
+  rr(cx+9,  y+19+bob, 6, 17, 3, true, false);
+  // Hands — warmer skin tone
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.arc(cx-12, y+36+bob, 3.5, 0, Math.PI*2);
+  ctx.arc(cx+12, y+36+bob, 3.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Stethoscope
+  ctx.strokeStyle = '#164e63';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, y+21+bob, 4, 0, Math.PI);
+  ctx.stroke();
+  ctx.fillStyle = '#0c4a6e';
+  ctx.beginPath();
+  ctx.arc(cx-4, y+21+bob, 2, 0, Math.PI*2);
+  ctx.arc(cx+4, y+21+bob, 2, 0, Math.PI*2);
+  ctx.fill();
+
+  // Head — Maya has a bun hairstyle, darker skin
+  drawHead(cx, y+9+bob, '#d97706', '#1c1917', 'bun');
+
+  // Glasses
+  ctx.strokeStyle = '#374151';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx-4, y+15+bob, 3, 0, Math.PI*2);
+  ctx.arc(cx+4, y+15+bob, 3, 0, Math.PI*2);
+  ctx.moveTo(cx-1, y+15+bob);
+  ctx.lineTo(cx+1, y+15+bob);
+  ctx.moveTo(cx-13, y+15+bob);
+  ctx.lineTo(cx-7, y+15+bob);
+  ctx.moveTo(cx+7, y+15+bob);
+  ctx.lineTo(cx+13, y+15+bob);
+  ctx.stroke();
+}
+
+// ── PATIENT sprites — varied by mood/urgency ──────────
+function drawPatientSprite(x, y, urgency, mood, firstName){
+  const cx = x + 18;
+  const col = uColor(urgency);
+  drawShadow(cx, y+58, 20);
+
+  // Hospital gown — colour-coded by urgency
+  const gownColor = urgency==='red' ? '#fef2f2' : urgency==='yellow' ? '#fffbeb' : '#f0fdf4';
+  const gownTrim  = urgency==='red' ? '#fecaca' : urgency==='yellow' ? '#fde68a' : '#bbf7d0';
+
+  // Legs (sitting-ish pose for some, standing for others)
+  ctx.fillStyle = '#e2e8f0';
+  rr(cx-8, y+38, 8, 18, 3, true, false);
+  rr(cx,   y+38, 8, 18, 3, true, false);
+  // Feet/slippers
+  ctx.fillStyle = '#94a3b8';
+  rr(cx-10, y+53, 10, 5, 3, true, false);
+  rr(cx,    y+53, 10, 5, 3, true, false);
+
+  // Gown body
+  ctx.fillStyle = gownColor;
+  rr(cx-12, y+17, 24, 23, 7, true, false);
+  // Gown tie pattern (hospital gown detail)
+  ctx.strokeStyle = gownTrim;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([2,3]);
+  ctx.beginPath();
+  ctx.moveTo(cx, y+18); ctx.lineTo(cx, y+38);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+
+  // Urgency wristband
+  ctx.fillStyle = col;
+  rr(cx-14, y+32, 5, 8, 2, true, false);
+
+  // Arms
+  ctx.fillStyle = gownColor;
+  rr(cx-16, y+19, 6, 15, 3, true, false);
+  rr(cx+10, y+19, 6, 15, 3, true, false);
+
+  // Hands
+  const skinTones = {
+    'Priya':'#c77b3a', 'Robert':'#d4a06a', 'Aisha':'#8b5e3c',
+    'George':'#d4a06a','Mei':'#e8b89a','Dennis':'#e8c99a',
+    'Lena':'#f5cba7','Tariq':'#c8956a','Sandra':'#f0c8a0',
+  };
+  const skin = skinTones[firstName] || '#fde68a';
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(cx-13, y+34, 3.5, 0, Math.PI*2);
+  ctx.arc(cx+13, y+34, 3.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Mood expression modifier on face — use different hair per patient
+  const hairStyles = {
+    'Priya':'long','Robert':'short','Aisha':'curly',
+    'George':'short','Mei':'long','Dennis':'short',
+    'Lena':'long','Tariq':'short','Sandra':'curly',
+  };
+  const hairColors = {
+    'Priya':'#1c1917','Robert':'#6b7280','Aisha':'#1c1917',
+    'George':'#4b5563','Mei':'#1c1917','Dennis':'#9ca3af',
+    'Lena':'#92400e','Tariq':'#1c1917','Sandra':'#6b7280',
+  };
+  drawHead(cx, y+8, skin, hairColors[firstName]||'#374151', hairStyles[firstName]||'short');
+
+  // Mood — override mouth
+  if(mood === 'distressed'){
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(cx, y+20, 3, Math.PI+0.3, Math.PI*2-0.3);
+    ctx.stroke();
+  } else if(mood === 'anxious'){
+    // Worried brow lines
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx-5, y+13); ctx.lineTo(cx-2, y+15);
+    ctx.moveTo(cx+5, y+13); ctx.lineTo(cx+2, y+15);
+    ctx.stroke();
+  } else if(mood === 'unresponsive'){
+    // Eyes half-closed
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx-6, y+12, 4, 1.5);
+    ctx.fillRect(cx+2, y+12, 4, 1.5);
+  }
+}
+
+// ── MAIN CHARACTER FUNCTION (keeps old API) ────────────
+function character(x, y, role, main, accent, label){
+  // Legacy fallback — only called for anything not player/maya/patient
+  drawShadow(x+17, y+52, 18);
+  ctx.fillStyle = accent;
+  rr(x+5, y+30, 9, 20, 4, true, false);
+  rr(x+21,y+30, 9, 20, 4, true, false);
+  ctx.fillStyle = main;
+  rr(x+2, y+12, 30, 28, 9, true, false);
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath(); ctx.arc(x+17,y+4,13,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath(); ctx.arc(x+17,y-1,13,Math.PI,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111827';ctx.fillRect(x+11,y+3,3,3);ctx.fillRect(x+21,y+3,3,3);
+}
+
+function drawPlayer(){
+  player.step += .08;
+  const bob = Math.sin(player.step) * 1.8;
+  drawPlayerSprite(player.x, player.y, bob);
+}
+
+function uColor(u){return u==='red'?'#ef4444':u==='yellow'?'#f59e0b':'#22c55e'}
+function uText(u){return u==='red'?'CRITICAL':u==='yellow'?'URGENT':'LOW PRIORITY'}
+
+function drawPatients(){
+  patients.forEach(p => {
+    if(p.completed) return;
+    const w = patientWorkflow[p.idx];
+    p.pulse += (p.pulseSpeed || 0.075);
+    const pulse = (Math.sin(p.pulse)+1)/2;
+    const color = uColor(p.urgency);
+
+    // Urgency glow
+    ctx.globalAlpha = .14 + pulse*.16;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x+17, p.y+24, 36+pulse*8, 0, Math.PI*2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Mood ring
+    ctx.globalAlpha = .4;
+    ctx.strokeStyle = moodColor(p.mood);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(p.x+17, p.y+24, 22, 0, Math.PI*2);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+
+    // Patient sprite — detailed with urgency/mood/persona
+    drawPatientSprite(p.x, p.y, p.urgency, p.mood, p.firstName);
+
+    // Persona name tag — safe radius (min of 6, half height=8)
+    ctx.font = 'bold 11px Inter,Arial';
+    const nameW = ctx.measureText(p.firstName).width + 12;
+    const nTagX = p.x + 17 - nameW/2;
+    const nTagY = p.y + 54;
+    ctx.fillStyle = 'rgba(15,23,42,.82)';
+    rr(nTagX, nTagY, nameW, 15, 6, true, false);
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillText(p.firstName, nTagX + 6, nTagY + 11);
+
+    // Urgency badge circle
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x+34, p.y-12, 13, 0, Math.PI*2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = p.urgency==='green' ? '#052e16' : '#111827';
+    ctx.font = 'bold 16px Inter,Arial';
+    ctx.fillText(p.urgency==='red'?'!':p.urgency==='yellow'?'?':'✓', p.x+29, p.y-7);
+
+    // Workflow progress dots
+    const steps = [w.vitalsChecked.size>0, w.nandaDone, w.medicationDone, w.careDone.size>0, w.sbarDone, w.docDone];
+    steps.forEach((done, i) => {
+      ctx.fillStyle = done ? '#10b981' : 'rgba(255,255,255,.25)';
+      ctx.beginPath();
+      ctx.arc(p.x+4+i*9, p.y-28, 3.5, 0, Math.PI*2);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Deterioration label
+    if(w.deteriorated && !w.docDone){
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 11px Inter,Arial';
+      ctx.fillText('↑ DETERIORATING', p.x-18, p.y-42);
+    }
+
+    // Proximity prompt
+    const dist = Math.hypot((player.x+16)-(p.x+16), (player.y+22)-(p.y+22));
+    if(dist < 55 && !panelOpen && gameState==='playing'){
+      ctx.font = 'bold 12px Inter,Arial';
+      const w2 = patientWorkflow[p.idx];
+      const started = w2.vitalsChecked.size>0 || w2.nandaDone || w2.medicationDone || w2.careDone.size>0;
+      const lbl = started ? `↩ Resume ${p.firstName}` : `See ${p.firstName}`;
+      const lw2 = ctx.measureText(lbl).width + 16;
+      const lx2 = p.x + 17 - lw2/2;
+      ctx.fillStyle = started ? 'rgba(245,158,11,.9)' : 'rgba(15,23,42,.92)';
+      rr(lx2, p.y-60, lw2, 20, 8, true, false);
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillText(lbl, lx2 + 8, p.y-45);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// PLAYER MOVEMENT + STAMINA + EQUIPMENT
+// ═══════════════════════════════════════════════════════
+function collides(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function pointInRect(px,py,r){return px>=r.x&&px<=r.x+r.w&&py>=r.y&&py<=r.y+r.h}
+
+function updatePlayer(delta){
+  if(gameState!=='playing'||panelOpen) return;
+  let dx=0,dy=0;
+  if(keys.ArrowLeft ||keys.a||keys.A) dx--;
+  if(keys.ArrowRight||keys.d||keys.D) dx++;
+  if(keys.ArrowUp   ||keys.w||keys.W) dy--;
+  if(keys.ArrowDown ||keys.s||keys.S) dy++;
+
+  const moving = dx!==0 || dy!==0;
+  // Speed scales with stamina — below 25% stamina, player slows
+  const speedMult = stamina < 25 ? 0.45 + (stamina/25)*0.55 : 1.0;
+
+  if(moving){
+    const l=Math.hypot(dx,dy); dx/=l; dy/=l;
+    player.x+=dx*player.speed*speedMult;
+    player.y+=dy*player.speed*speedMult;
+    stamina = Math.max(0, stamina - STAMINA_DRAIN * delta);
+  }
+  player.x=Math.max(58,Math.min(canvas.width-88,player.x));
+  player.y=Math.max(72,Math.min(canvas.height-84,player.y));
+
+  // Check nurses station
+  const pCx = player.x + 15, pCy = player.y + 22;
+  atStation = pointInRect(pCx, pCy, NURSES_STATION);
+  const restEl = document.getElementById('restIndicator');
+  if(atStation && !panelOpen && stamina < 99){
+    stamina = Math.min(100, stamina + STAMINA_STATION_REGEN * delta);
+    restEl.style.display = 'block';
+  } else if(!moving){
+    stamina = Math.min(100, stamina + STAMINA_REGEN * delta);
+    restEl.style.display = 'none';
+  } else {
+    restEl.style.display = 'none';
+  }
+
+  // Equipment collection
+  EQUIPMENT_DEFS.forEach(eq => {
+    if(collectedEquipment.has(eq.id)) return;
+    if(pointInRect(pCx, pCy, eq)){
+      collectedEquipment.add(eq.id);
+      showEquipToast(`${eq.icon} ${eq.label} collected — unlocks ${eq.unlocks.map(id=>ALL_VITALS.find(v=>v.id===id)?.name).join(' & ')}`);
+      playBeep(880);
+      setTimeout(() => playBeep(1100), 120);
+    }
+  });
+
+  // Step-away cooldown
+  if(stepAwayCooldown > 0) stepAwayCooldown--;
+
+  // Patient collision — skip patient we just stepped away from during cooldown
+  for(const p of patients){
+    if(!p.completed && collides(player,p)){
+      if(stepAwayCooldown > 0 && p.idx === stepAwayPatientIdx) continue;
+      stepAwayPatientIdx = -1; // clear once we touch a different patient or cooldown expires
+      openInteractionMenu(p);
+      break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// DETERIORATION SYSTEM
+// ═══════════════════════════════════════════════════════
+const DETERIORATE_THRESHOLD = { red: 30, yellow: 55, green: 999 }; // seconds before escalating
+let deteriorationAlertTimer = 0;
+
+function updateDeterioration(delta){
+  if(gameState !== 'playing' || panelOpen) return;
+  let anyDeterioration = false;
+  patients.forEach(p => {
+    if(p.completed) return;
+    const w = patientWorkflow[p.idx];
+    if(w.docDone) return;
+    // Pause timer if nurse is currently in the room with this patient
+    if(currentPatient && currentPatient.idx === p.idx) return;
+    w.waitTime += delta;
+    const thresh = DETERIORATE_THRESHOLD[w.originalUrgency];
+    if(!w.deteriorated && w.waitTime > thresh){
+      w.deteriorated = true;
+      // Escalate urgency one tier
+      if(p.urgency === 'green')  p.urgency = 'yellow';
+      else if(p.urgency === 'yellow') p.urgency = 'red';
+      anyDeterioration = true;
+      mayaAlertDeterioration(p.idx);
+      score -= 8;
+      flash = {alpha:.18, color:'#ef4444'};
+    }
+    // Pulse speed increases with wait time
+    p.pulseSpeed = Math.min(0.18, 0.075 + (w.waitTime / thresh) * 0.08);
+  });
+  if(anyDeterioration){
+    document.getElementById('deteriorationAlert').style.display = 'block';
+    deteriorationAlertTimer = 4;
+    playBeep(320);
+  }
+  if(deteriorationAlertTimer > 0){
+    deteriorationAlertTimer -= delta;
+    if(deteriorationAlertTimer <= 0) document.getElementById('deteriorationAlert').style.display = 'none';
+  }
+}
+function updateHUD(){
+  if(gameState!=='playing') return;
+  document.getElementById('scoreVal').textContent    = score;
+  document.getElementById('patientsVal').textContent = completed+'/'+patients.length;
+  document.getElementById('timerVal').textContent    = formatTime(shiftTime);
+
+  const timerEl = document.getElementById('timerHud');
+  timerEl.classList.remove('urgent','critical');
+  if(shiftTime < 30)  timerEl.classList.add('critical');
+  else if(shiftTime < 60) timerEl.classList.add('urgent');
+
+  progressInner.style.width = ((completed/patients.length)*100)+'%';
+
+  // Stamina bar
+  const si = document.getElementById('staminaInner');
+  si.style.width = stamina + '%';
+  si.style.background = stamina > 60
+    ? 'linear-gradient(90deg,#10b981,#34d399)'
+    : stamina > 30
+      ? 'linear-gradient(90deg,#f59e0b,#fcd34d)'
+      : 'linear-gradient(90deg,#ef4444,#f87171)';
+
+  // Vignette fatigue
+  const v = document.getElementById('vignette');
+  if(stamina < 35){
+    const intensity = (35 - stamina) / 35;
+    v.style.boxShadow = `inset 0 0 ${80+intensity*120}px ${30+intensity*60}px rgba(0,0,0,${0.28+intensity*0.42})`;
+  } else {
+    v.style.boxShadow = 'none';
+  }
+}
+
+function drawFlash(){
+  if(flash.alpha<=0) return;
+  ctx.globalAlpha=flash.alpha; ctx.fillStyle=flash.color;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.globalAlpha=1; flash.alpha-=.012;
+}
+
+// ═══════════════════════════════════════════════════════
+// END SHIFT → DEBRIEF → SUMMARY
+// ═══════════════════════════════════════════════════════
+function endShift(){
+  if(gameState !== 'playing') return;
+  gameState = 'end'; hidePanels();
+  hud.style.display = 'none'; instructions.style.display = 'none';
+  document.getElementById('deteriorationAlert').style.display = 'none';
+  document.getElementById('restIndicator').style.display = 'none';
+  document.getElementById('equipToast').style.display = 'none';
+  document.getElementById('vignette').style.boxShadow = 'none';
+  showDebrief();
+}
+
+function showDebrief(){
+  const lv = levels[currentLevelIndex];
+  const accuracy = patients.length ? Math.round((correctCount/patients.length)*100) : 0;
+  const passed = accuracy >= lv.passAccuracy;
+
+  // 1. Assessment
+  const totalReq = patients.reduce((a,p)=>a+p.requiredVitals.length,0);
+  const totalRec = patients.reduce((a,p)=>{const w=patientWorkflow[p.idx];return a+p.requiredVitals.filter(id=>w.vitalsChecked.has(id)).length;},0);
+  const assessStars = totalReq ? Math.round((totalRec/totalReq)*5) : 0;
+
+  // 2. Prioritisation
+  let pScore = 5;
+  patients.filter(p=>!p.completed).forEach(()=>pScore--);
+  patients.filter(p=>{const w=patientWorkflow[p.idx];if(!w.docDone)return false;const t={red:30,yellow:55,green:120}[w.originalUrgency]||120;return w.waitTime>t;}).forEach(()=>pScore=Math.max(0,pScore-0.8));
+  const priorityStars = Math.min(5,Math.max(0,Math.round(pScore)));
+
+  // 3. Clinical Accuracy — NANDA label + related-to correctness
+  const nandaPatients = patients.filter(p => patientWorkflow[p.idx].nandaDone);
+  let nandaCorrect = 0;
+  nandaPatients.forEach(p => {
+    const nr = patientWorkflow[p.idx].nandaResult;
+    if(nr && nr.labelCorrect && nr.relatedCorrect) nandaCorrect++;
+  });
+  const accuracyPct = nandaPatients.length ? Math.round((nandaCorrect/nandaPatients.length)*100) : accuracy;
+  const accuracyStars = accuracyPct>=90?5:accuracyPct>=75?4:accuracyPct>=60?3:accuracyPct>=40?2:1;
+
+  // 4. Care
+  const totalCare = patients.reduce((a,p)=>a+p.requiredCare.length,0);
+  const doneCare  = patients.reduce((a,p)=>{const w=patientWorkflow[p.idx];return a+p.requiredCare.filter(id=>w.careDone.has(id)).length;},0);
+  const careStars = totalCare ? Math.round((doneCare/totalCare)*5) : 0;
+
+  // 5. Timeliness
+  const detN = patients.filter(p=>patientWorkflow[p.idx].deteriorated).length;
+  const timeStars = detN===0?5:detN===1?4:detN===2?3:detN===3?2:1;
+
+  // 6. Communication (SBAR)
+  const sbarPatients = patients.filter(p => patientWorkflow[p.idx].sbarDone);
+  let sbarCorrectTotal = 0, sbarTotal = 0;
+  sbarPatients.forEach(p => {
+    const w = patientWorkflow[p.idx];
+    Object.values(w.sbarSelections).forEach(sel => {
+      sbarTotal++;
+      if(sel.correct) sbarCorrectTotal++;
+    });
+  });
+  const sbarRate = sbarTotal > 0 ? sbarCorrectTotal / sbarTotal : 0;
+  const sbarStars = sbarTotal === 0 ? 1 : Math.round(sbarRate * 5);
+
+  const overallStars = Math.round((assessStars+priorityStars+accuracyStars+careStars+timeStars+sbarStars)/6);
+
+  const tips = {
+    assess: assessStars<3?'Record all required vitals — missing readings compromise your clinical picture.':assessStars<5?'Good effort. Aim to record every required vital.':'Excellent vital sign coverage.',
+    priority: priorityStars<3?'Attend to red and yellow patients before green. Check the Acuity Board.':priorityStars<5?'Prioritisation mostly good. Watch patient wait times.':'Excellent triage prioritisation.',
+    accuracy: accuracy<60?'Review the clinical explanations in each patient card below.':accuracy<80?'Good decisions. Use vital interpretation flags to support your choices.':'Strong clinical reasoning.',
+    care: careStars<3?'Complete all required care tasks — nutrition, hygiene and communication matter.':careStars<5?'Nearly there. Check the required tags in the care panel.':'All care obligations met.',
+    timely: detN>2?'Several patients deteriorated. Use the Acuity Board and Maya hints to prioritise.':detN>0?'One or two patients deteriorated before being seen. Watch the pulse glow.':'All patients attended promptly.',
+    comms:  sbarStars<3?'SBAR handover needs improvement. Situation and Recommendation sections are most critical for patient safety.':sbarStars<5?'Good handover. Ensure the Assessment section reflects your recorded vital findings.':'Clear, complete SBAR handovers across all patients.',
+  };
+
+  function starHTML(n){
+    let s='';
+    for(let i=1;i<=5;i++) s+='<span style="color:'+(i<=n?'#f59e0b':'rgba(100,116,139,.3)')+';font-size:18px">&#9733;</span>';
+    return s;
+  }
+
+  const dims=[
+    {label:'Assessment',      stars:assessStars,    tip:tips.assess,    icon:'📋'},
+    {label:'Prioritisation',  stars:priorityStars,  tip:tips.priority,  icon:'🎯'},
+    {label:'Clinical Accuracy',stars:accuracyStars, tip:tips.accuracy,  icon:'🩺'},
+    {label:'Care Delivery',   stars:careStars,       tip:tips.care,      icon:'🤝'},
+    {label:'Timeliness',      stars:timeStars,       tip:tips.timely,    icon:'⏱'},
+    {label:'Communication',   stars:sbarStars,        tip:tips.comms,     icon:'📢'},
+  ];
+
+  const overallIcon = overallStars>=5?'🏆':overallStars>=4?'⭐':overallStars>=3?'👍':'📝';
+
+  const sb = document.getElementById('debriefSummary');
+  sb.innerHTML =
+    '<div style="grid-column:1/-1;display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:4px">'+
+    '<div style="font-size:48px;line-height:1">'+overallIcon+'</div>'+
+    '<div>'+
+      '<div style="font-family:var(--f-display);font-size:22px;font-weight:800;color:var(--c-text)">'+(passed?'Shift Passed':'Shift Review Required')+'</div>'+
+      '<div style="color:var(--c-text-2);font-size:14px;margin-top:2px">'+(passed?'Well done. Your clinical performance has been recorded.':'You did not meet the required accuracy threshold. Review the cases below.')+'</div>'+
+      '<div style="margin-top:6px">'+starHTML(overallStars)+' <span style="color:var(--c-text-3);font-size:13px;margin-left:6px">Overall: '+overallStars+'/5</span></div>'+
+    '</div></div>'+
+    dims.map(d=>
+      '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+      '<div style="font-size:13px;font-weight:700;color:var(--c-text)">'+d.icon+' '+d.label+'</div>'+
+      '<div>'+starHTML(d.stars)+'</div></div>'+
+      '<div style="font-size:11px;color:var(--c-text-2);line-height:1.5">'+d.tip+'</div></div>'
+    ).join('');
+
+  if(passed && currentLevelIndex+2>unlockedLevel){
+    unlockedLevel=Math.min(levels.length,currentLevelIndex+2);
+    localStorage.setItem('shiftcareUnlocked',unlockedLevel);
+  }
+  document.getElementById('debriefNextBtn').style.display=(passed&&currentLevelIndex<levels.length-1)?'inline-block':'none';
+
+  // Per-patient cards
+  const cards=document.getElementById('debriefCards');
+  cards.innerHTML='';
+  patients.forEach(p=>{
+    const w=patientWorkflow[p.idx];
+    const missedV=p.requiredVitals.filter(id=>!w.vitalsChecked.has(id));
+    const missedC=p.requiredCare.filter(id=>!w.careDone.has(id));
+    const allPerfect=missedV.length===0&&missedC.length===0&&w.triageCorrect===true&&!w.deteriorated&&w.docDone;
+    const hasMiss=missedV.length>0||missedC.length>0||w.triageCorrect===false||w.deteriorated;
+    const card=document.createElement('div');
+    card.className='debriefCard '+(allPerfect?'perfect':hasMiss?(w.triageCorrect===false||w.deteriorated?'critical-miss':'issues'):'perfect');
+    let badge,badgeClass;
+    if(!w.docDone){badge='Not Attended';badgeClass='skip';}
+    else if(allPerfect){badge='Excellent Care';badgeClass='good';}
+    else if(w.triageCorrect===false||w.deteriorated){badge='Critical Issues';badgeClass='bad';}
+    else{badge='Needs Review';badgeClass='warn';}
+    const vitalRows=ALL_VITALS.map(v=>{
+      const isReq=p.requiredVitals.includes(v.id);
+      const recorded=w.vitalsChecked.has(v.id);
+      const val=w.vitalsValues[v.id]||null;
+      if(!recorded&&!isReq) return '';
+      const interp=recorded&&val?interpretVital(v.id,val):null;
+      const rowClass=!recorded&&isReq?'miss':(interp&&interp.flag!=='normal'?'miss':'ok');
+      const display=recorded?(val+(interp&&interp.flag!=='normal'?' — '+interp.label:'')):'NOT RECORDED';
+      return '<div class="debriefRow '+rowClass+'"><span class="dIcon">'+v.icon+'</span>'+v.name+': <strong>'+display+'</strong></div>';
+    }).join('');
+    const triageNote = w.nandaDone && w.nandaResult
+      ? (w.nandaResult.labelCorrect && w.nandaResult.relatedCorrect
+          ? '✓ NANDA Diagnosis correct: <em>' + p.nanda.label + ' related to ' + p.nanda.related + '</em><br>' + p.nanda.explanation
+          : '✗ NANDA incomplete. Correct: <em>' + p.nanda.label + ' related to ' + p.nanda.related + '</em><br>' + p.nanda.explanation)
+      : '✗ Nursing diagnosis not completed.';
+    const detNote=w.deteriorated?'⚠ Patient deteriorated (waited >'+(DETERIORATE_THRESHOLD[w.originalUrgency]||'?')+'s unattended). (-8 pts)':'';
+    card.innerHTML=
+      '<div class="debriefHeader">'+
+      '<h4>'+p.firstName+', '+p.age+' <span style="font-size:12px;color:#64748b;font-weight:500">· '+p.backstory+'</span></h4>'+
+      '<span class="debriefBadge '+badgeClass+'">'+badge+'</span></div>'+
+      '<div class="debriefRows">'+vitalRows+'</div>'+
+      (missedC.length>0?'<div class="debriefRow miss" style="margin-top:6px"><span class="dIcon">🤝</span>Missed care: <strong>'+missedC.map(id=>(CARE_TASKS.find(t=>t.id===id)||{}).label||id).join(', ')+'</strong></div>':'')+
+      '<div class="debriefNote">'+triageNote+(detNote?'<br>'+detNote:'')+'</div>';
+    cards.appendChild(card);
+  });
+
+  document.getElementById('debriefPanel').style.display='block';
+}
+function afterDebrief(){
+  hidePanels(); panelOpen=false;
+  if(currentLevelIndex<levels.length-1) startLevel(currentLevelIndex+1);
+  else showLevelSelect();
+}
+
+// ═══════════════════════════════════════════════════════
+// GAME LOOP
+// ═══════════════════════════════════════════════════════
+let last = performance.now();
+function loop(now){
+  const delta=(now-last)/1000; last=now;
+  if(gameState==='playing'&&!panelOpen){
+    shiftTime-=delta;
+    if(shiftTime<=0){shiftTime=0;endShift()}
+    updateDeterioration(delta);
+  }
+  if(feedbackTimer>0){feedbackTimer-=delta}
+  updatePlayer(delta);
+  updateMaya(delta);
+  drawRoom();
+  if(gameState==='playing'||gameState==='end'){
+    drawAcuityBoard();
+    drawPatients();drawMaya();drawPlayer();drawFlash();
+  }
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});
+document.addEventListener('keyup',e=>keys[e.key]=false);
+
+// Touch
+(function(){
+  let tx=0,ty=0;
+  canvas.addEventListener('touchstart',e=>{const t=e.touches[0];tx=t.clientX;ty=t.clientY;e.preventDefault()},{passive:false});
+  canvas.addEventListener('touchmove',e=>{const t=e.touches[0];const dx=t.clientX-tx,dy=t.clientY-ty;keys.ArrowLeft=dx<-18;keys.ArrowRight=dx>18;keys.ArrowUp=dy<-18;keys.ArrowDown=dy>18;e.preventDefault()},{passive:false});
+  canvas.addEventListener('touchend',()=>{keys.ArrowLeft=keys.ArrowRight=keys.ArrowUp=keys.ArrowDown=false});
+})();
+
+showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
