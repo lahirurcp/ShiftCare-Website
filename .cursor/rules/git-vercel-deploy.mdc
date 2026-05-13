@@ -1,0 +1,33 @@
+---
+description: After code changes, commit and push to origin/main so Vercel (GitHub integration) deploys.
+alwaysApply: true
+---
+
+# Git → Vercel deployment (this repo)
+
+Production is hosted on **Vercel** and is wired to **GitHub**. A new deployment runs when commits land on the connected branch (**`main`**).
+
+## When to run git
+
+After you finish **user-requested** edits that should go live (or when the user says deploy, ship, push, or similar):
+
+1. Run `git status` in the project root (`Motionweb`).
+2. If there are **no** changes to commit, tell the user the tree is clean and nothing was pushed.
+3. If there **are** changes:
+   - Do **not** commit secrets, `.env`, or `.env.*` (they are gitignored; if someone unignored them, stop and warn).
+   - `git add -A` (or stage only the files you intentionally changed).
+   - `git commit -m "…"` with a short, accurate message (present tense, what changed).
+   - `git push origin main`.
+
+## If push fails
+
+- Report the error once. Typical fix: GitHub auth (PAT, `gh auth login`, or SSH), or network.
+- Do **not** loop `git push` blindly or use `--force` on `main` unless the user explicitly asks.
+
+## If the user says not to push
+
+Skip commit/push for that turn (they may be experimenting locally).
+
+## Vercel
+
+You do **not** need the Vercel CLI for deploys here: **push to `main` is enough** once the Vercel project is linked to this GitHub repo. Remind the user they can confirm in the Vercel dashboard → Deployments.
