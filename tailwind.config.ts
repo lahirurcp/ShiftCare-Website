@@ -15,8 +15,9 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
+        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
         display: ["var(--font-syne)", "sans-serif"],
-        mono: ["var(--font-mono)", "monospace"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       colors: {
         // shadcn tokens
@@ -53,20 +54,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // ShiftCare brand tokens
+        // ShiftCare brand tokens — CSS variable references for theme switching
         sc: {
-          bg:       "#060d1a",
-          surface:  "#0d1b2e",
-          surface2: "#132033",
-          teal:     "#00d4a0",
-          "teal-2": "#00b88a",
-          indigo:   "#6366f1",
-          red:      "#ef4444",
-          amber:    "#f59e0b",
-          green:    "#10b981",
-          text:     "#f1f5f9",
-          "text-2": "#94a3b8",
-          "text-3": "#475569",
+          bg:       "rgb(var(--sc-bg) / <alpha-value>)",
+          surface:  "rgb(var(--sc-surface) / <alpha-value>)",
+          surface2: "rgb(var(--sc-surface2) / <alpha-value>)",
+          teal:     "rgb(var(--sc-teal) / <alpha-value>)",
+          "teal-2": "rgb(var(--sc-teal-2) / <alpha-value>)",
+          indigo:   "rgb(var(--sc-indigo) / <alpha-value>)",
+          red:      "rgb(var(--sc-red) / <alpha-value>)",
+          amber:    "rgb(var(--sc-amber) / <alpha-value>)",
+          green:    "rgb(var(--sc-green) / <alpha-value>)",
+          text:     "rgb(var(--sc-text) / <alpha-value>)",
+          "text-2": "rgb(var(--sc-text-2) / <alpha-value>)",
+          "text-3": "rgb(var(--sc-text-3) / <alpha-value>)",
         },
         ali: "hsl(var(--ali))",
         skin: { base: "transparent" },

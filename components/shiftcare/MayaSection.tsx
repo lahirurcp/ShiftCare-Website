@@ -1,7 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { fadeUp, slideInLeft, slideInRight, staggerContainer, viewport } from "@/lib/animations";
+import {
+  atmosphericFade,
+  blurIn,
+  cinematicReveal,
+  slideInRight,
+  staggerCinematic,
+  viewport,
+} from "@/lib/animations";
 
 const messages = [
   {
@@ -11,7 +18,7 @@ const messages = [
   },
   {
     role: "maya",
-    text: "I understand the hesitation, but let's look at the full picture. Her BP of 88/54 combined with a temperature of 38.9°C and RR of 24 gives her a NEWS2 of 7 — that's a Category 3 response. The NICE NG51 guideline requires you to escalate within 15 minutes. The registrar needs to know.",
+    text: "I understand the hesitation, but let's look at the full picture. Her BP of 88/54 combined with a temperature of 38.9°C and RR of 24 gives her a NEWS2 of 7 — that's a Category 3 response. The NICE NG51 guideline requires you to escalate within 15 minutes.",
     time: "14:23",
     highlight: "NEWS2 = 7 → Urgent escalation required (NICE NG51)",
   },
@@ -22,66 +29,88 @@ const messages = [
   },
   {
     role: "maya",
-    text: "Respiratory rate is often the earliest sign of deterioration — and the most overlooked. In sepsis, RR rises before BP drops. That's why NEWS2 weights it so heavily. You spotted the low BP. Next time, also check: is the RR above 20? That's your early warning. Want me to show you the full NEWS2 chart?",
+    text: "Respiratory rate is often the earliest sign of deterioration — and the most overlooked. In sepsis, RR rises before BP drops. That's why NEWS2 weights it so heavily. RR above 20 is your early warning.",
     time: "14:24",
     highlight: "RR > 20 = early sepsis indicator. Always check alongside BP.",
   },
 ];
 
+const capabilities = [
+  {
+    title: "References NICE, NHS, and NANDA-I guidelines in real time",
+    sub: "Evidence-linked rationale for every decision",
+  },
+  {
+    title: "Identifies knowledge gaps across 6 clinical domains",
+    sub: "Personalised coaching — not one-size feedback",
+  },
+  {
+    title: "Non-judgemental by design",
+    sub: "Explains mistakes as learning moments, never as failures",
+  },
+  {
+    title: "Adapts coaching to each student's history",
+    sub: "Remembers previous sessions and builds on them",
+  },
+];
+
 export function MayaSection() {
   return (
-    <section id="maya" className="relative py-28 md:py-36 overflow-hidden">
+    <section id="maya" className="relative py-40 md:py-52 overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sc-indigo/20 to-transparent" />
-        <div className="absolute top-1/2 right-0 w-[500px] h-[500px] bg-sc-indigo/5 rounded-full blur-[100px]" />
+        <div className="absolute top-1/4 right-0 w-[600px] h-[600px] bg-sc-indigo/[0.045] rounded-full blur-[130px] translate-x-1/3" />
+        <div className="absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-sc-teal/[0.03] rounded-full blur-[120px] -translate-x-1/4" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          {/* Left — copy */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 xl:gap-24 items-center">
+
+          {/* Left — editorial copy */}
           <motion.div
-            variants={staggerContainer}
+            variants={staggerCinematic}
             initial="hidden"
             whileInView="visible"
             viewport={viewport}
           >
-            <motion.div variants={fadeUp}>
-              <span className="inline-block text-xs font-semibold tracking-widest text-sc-indigo uppercase mb-4 px-3 py-1 rounded-full border border-sc-indigo/20 bg-sc-indigo/5">
-                AI Mentor
-              </span>
-            </motion.div>
+            <motion.span variants={atmosphericFade} className="cinematic-label mb-6">
+              AI Mentor
+            </motion.span>
             <motion.h2
-              variants={fadeUp}
-              className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-sc-text mb-6 leading-tight"
+              variants={cinematicReveal}
+              className="font-display font-bold text-sc-text leading-tight mt-6 mb-6"
+              style={{ fontSize: "clamp(2.4rem, 5.5vw, 4.5rem)" }}
             >
               Meet Maya.
               <br />
               <span className="text-gradient-teal">Your AI clinical mentor.</span>
             </motion.h2>
             <motion.p
-              variants={fadeUp}
-              className="text-sc-text-2 text-lg leading-relaxed mb-8"
+              variants={blurIn}
+              className="text-sc-text-2 text-lg leading-relaxed mb-12 max-w-lg"
             >
-              Maya doesn&apos;t just tell you the answer — she explains the
-              clinical reasoning behind it. She references NICE guidelines,
-              NEWS2 scoring, and NANDA-I nursing diagnoses. She remembers your
-              previous decisions and adapts her coaching to your learning gaps.
+              Maya doesn&apos;t tell you the answer — she explains the clinical
+              reasoning behind it. She references NICE guidelines, NEWS2 scoring,
+              and NANDA-I nursing diagnoses. She adapts to your learning gaps.
             </motion.p>
 
-            <motion.div variants={staggerContainer} className="space-y-4">
-              {[
-                { icon: "📚", text: "References NICE, NHS, and NANDA-I guidelines in real time" },
-                { icon: "🧠", text: "Identifies knowledge gaps across 6 clinical domains" },
-                { icon: "💙", text: "Non-judgemental — explains mistakes as learning moments" },
-                { icon: "📊", text: "Tracks progress and adapts coaching to each student" },
-              ].map((item) => (
+            {/* Capabilities — editorial, no emoji */}
+            <motion.div variants={staggerCinematic} className="space-y-7">
+              {capabilities.map((cap, i) => (
                 <motion.div
-                  key={item.text}
-                  variants={fadeUp}
-                  className="flex items-start gap-3"
+                  key={cap.title}
+                  variants={blurIn}
+                  className="flex items-start gap-4"
                 >
-                  <span className="text-lg flex-shrink-0 mt-0.5">{item.icon}</span>
-                  <span className="text-sc-text-2 text-sm">{item.text}</span>
+                  {/* Clinical mark */}
+                  <div className="mt-1.5 flex-shrink-0">
+                    <div className="w-4 h-px bg-sc-teal/50" />
+                  </div>
+                  <div>
+                    <p className="text-sc-text text-sm font-medium leading-snug mb-0.5">
+                      {cap.title}
+                    </p>
+                    <p className="text-sc-text-3 text-xs leading-relaxed">{cap.sub}</p>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -94,75 +123,100 @@ export function MayaSection() {
             whileInView="visible"
             viewport={viewport}
           >
-            <div className="relative rounded-2xl overflow-hidden border border-sc-indigo/20 shadow-2xl shadow-sc-indigo/10"
-              style={{ background: "linear-gradient(135deg, #0d1b2e 0%, #060d1a 100%)" }}
+            <div
+              className="relative rounded-2xl overflow-hidden border border-sc-indigo/20 glow-indigo"
+              style={{
+                background:
+                  "linear-gradient(145deg, rgb(var(--sc-surface) / 0.95) 0%, rgb(var(--sc-bg) / 0.9) 100%)",
+              }}
             >
               {/* Chat header */}
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-sc-indigo/15">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-sc-indigo/12">
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sc-indigo to-sc-teal flex items-center justify-center text-white text-sm font-bold">
-                    M
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sc-indigo/80 to-sc-teal/60 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold font-display">M</span>
                   </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-sc-teal border-2 border-sc-bg" />
+                  <motion.div
+                    className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-sc-teal border-2 border-sc-bg"
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: [0.16, 1, 0.3, 1] }}
+                    aria-hidden
+                  />
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-sc-text">Maya</div>
-                  <div className="text-xs text-sc-teal">Clinical AI Mentor · Online</div>
+                  <div className="text-xs text-sc-teal/80">Clinical AI Mentor · Active</div>
                 </div>
                 <div className="ml-auto flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-sc-teal animate-pulse" />
+                  <motion.div
+                    className="w-1.5 h-1.5 rounded-full bg-sc-teal"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1.8, repeat: Infinity }}
+                  />
                   <span className="text-xs text-sc-text-3">Live session</span>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="p-5 space-y-4 max-h-96 overflow-y-auto">
+              {/* Messages — staggered to simulate real conversation timing */}
+              <div className="p-5 space-y-4">
                 {messages.map((msg, i) => (
                   <motion.div
                     key={i}
-                    initial={{ opacity: 0, y: 12 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={viewport}
-                    transition={{ delay: i * 0.15, duration: 0.4 }}
+                    initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                    whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{
+                      delay: [0.2, 1.0, 2.1, 3.0][i] ?? i * 0.6,
+                      duration: 0.4,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
                     className={`flex ${msg.role === "student" ? "justify-end" : "justify-start"}`}
                   >
                     {msg.role === "maya" && (
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sc-indigo to-sc-teal flex items-center justify-center text-white text-xs font-bold mr-2 flex-shrink-0 mt-1">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sc-indigo/70 to-sc-teal/50 flex items-center justify-center text-white text-xs font-bold mr-2 flex-shrink-0 mt-1">
                         M
                       </div>
                     )}
-                    <div className={`max-w-[85%] ${msg.role === "student" ? "items-end" : "items-start"} flex flex-col gap-1.5`}>
+                    <div
+                      className={`max-w-[86%] flex flex-col gap-1.5 ${
+                        msg.role === "student" ? "items-end" : "items-start"
+                      }`}
+                    >
                       <div
                         className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                           msg.role === "student"
-                            ? "bg-sc-surface2 text-sc-text-2 rounded-tr-sm"
-                            : "bg-sc-indigo/15 border border-sc-indigo/20 text-sc-text rounded-tl-sm"
+                            ? "bg-sc-surface2/80 text-sc-text-2 rounded-tr-sm"
+                            : "bg-sc-indigo/12 border border-sc-indigo/18 text-sc-text rounded-tl-sm"
                         }`}
                       >
                         {msg.text}
                       </div>
                       {msg.highlight && (
-                        <div className="bg-sc-teal/10 border border-sc-teal/20 rounded-lg px-3 py-2 text-xs text-sc-teal font-medium">
-                          💡 {msg.highlight}
+                        <div className="bg-sc-teal/8 border border-sc-teal/18 rounded-lg px-3 py-2 text-xs text-sc-teal font-medium">
+                          {msg.highlight}
                         </div>
                       )}
-                      <span className="text-xs text-sc-text-3 px-1">{msg.time}</span>
+                      <span className="text-xs text-sc-text-3/60 px-1">{msg.time}</span>
                     </div>
                   </motion.div>
                 ))}
 
                 {/* Typing indicator */}
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sc-indigo to-sc-teal flex items-center justify-center text-white text-xs font-bold">
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sc-indigo/70 to-sc-teal/50 flex items-center justify-center text-white text-xs font-bold">
                     M
                   </div>
-                  <div className="bg-sc-indigo/15 border border-sc-indigo/20 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
+                  <div className="bg-sc-indigo/12 border border-sc-indigo/18 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
                     {[0, 1, 2].map((j) => (
                       <motion.div
                         key={j}
-                        className="w-1.5 h-1.5 rounded-full bg-sc-indigo/60"
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }}
+                        className="w-1.5 h-1.5 rounded-full bg-sc-indigo/50"
+                        animate={{ opacity: [0.25, 1, 0.25], y: [0, -2, 0] }}
+                        transition={{
+                          duration: 1.1,
+                          repeat: Infinity,
+                          delay: j * 0.18,
+                        }}
                       />
                     ))}
                   </div>
@@ -171,11 +225,24 @@ export function MayaSection() {
 
               {/* Input */}
               <div className="px-4 py-3 border-t border-sc-indigo/10">
-                <div className="flex items-center gap-2 bg-sc-bg/60 rounded-xl px-4 py-2.5 border border-white/5">
-                  <span className="text-sc-text-3 text-sm flex-1">Ask Maya about this patient...</span>
-                  <div className="w-7 h-7 rounded-lg bg-sc-teal/20 flex items-center justify-center">
-                    <svg className="w-3.5 h-3.5 text-sc-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <div className="flex items-center gap-2 bg-sc-bg/50 rounded-xl px-4 py-2.5 border border-sc-teal/20">
+                  <span className="text-sc-text-3 text-sm flex-1 select-none">
+                    Ask Maya about this patient...
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-sc-teal/15 border border-sc-teal/20 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      className="w-3.5 h-3.5 text-sc-teal"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                      />
                     </svg>
                   </div>
                 </div>

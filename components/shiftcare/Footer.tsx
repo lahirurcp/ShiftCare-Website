@@ -26,6 +26,7 @@ const links: Record<string, { label: string; href: string }[]> = {
     { label: "Blog", href: "#" },
     { label: "Careers", href: "#" },
     { label: "Contact", href: "/book" },
+    { label: "Data Policy", href: "/privacy" },
   ],
 };
 
@@ -48,11 +49,17 @@ export function Footer() {
                 Shift<span className="text-sc-teal">Care</span>
               </span>
             </div>
-            <p className="text-xs text-sc-text-3 leading-relaxed mb-4">
+            <p className="text-xs text-sc-text-3 leading-relaxed mb-3">
               Clinical decision intelligence for the next generation of nurses.
             </p>
+            <a
+              href="mailto:hello@shiftcare.io"
+              className="text-xs text-sc-text-3 hover:text-sc-teal transition-colors block mb-4"
+            >
+              hello@shiftcare.io
+            </a>
             <div className="flex items-center gap-1 text-xs text-sc-teal">
-              <span className="relative flex h-1.5 w-1.5">
+              <span className="relative flex h-1.5 w-1.5" aria-hidden>
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sc-teal opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sc-teal" />
               </span>
@@ -101,9 +108,9 @@ export function Footer() {
         </div>
 
         {/* NHS disclaimer */}
-        <div className="mt-6 p-4 rounded-xl bg-sc-surface/40 border border-white/4">
+        <div className="mt-6 p-4 rounded-xl bg-sc-surface/40 border border-sc-teal/10">
           <p className="text-xs text-sc-text-3 text-center">
-            ⚕️ ShiftCare scenarios are developed with qualified nursing educators and reviewed against current NICE, NHS, and NMC guidelines.
+            ShiftCare scenarios are developed with qualified nursing educators and reviewed against current NICE, NHS, and NMC guidelines.
             Clinical content is updated quarterly. Not a medical device. Educational use only.
           </p>
         </div>

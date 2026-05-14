@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/shiftcare/ThemeToggle";
 
 const navLinks = [
   { label: "Demo", href: "#demo" },
@@ -16,11 +17,34 @@ const navLinks = [
 export function Navigation() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("");
   const { scrollY } = useScroll();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 56);
   });
+
+  useEffect(() => {
+    const ids = navLinks
+      .filter((l) => l.href.startsWith("#") && l.href !== "#home")
+      .map((l) => l.href.slice(1));
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveSection(entry.target.id);
+        });
+      },
+      { rootMargin: "-35% 0px -60% 0px", threshold: 0 }
+    );
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (mobileOpen) {
@@ -38,11 +62,11 @@ export function Navigation() {
       <motion.header
         className="fixed top-0 left-0 right-0 z-50"
         style={{
-          background: scrolled ? "rgba(6, 13, 26, 0.95)" : "transparent",
+          background: scrolled ? "rgb(var(--sc-bg) / 0.95)" : "transparent",
           backdropFilter: scrolled ? "blur(20px) saturate(1.5)" : "none",
           WebkitBackdropFilter: scrolled ? "blur(20px) saturate(1.5)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(0,212,160,0.1)" : "none",
-          boxShadow: scrolled ? "0 1px 40px rgba(0,0,0,0.4)" : "none",
+          borderBottom: scrolled ? "1px solid rgb(var(--sc-teal) / 0.1)" : "none",
+          boxShadow: scrolled ? "0 1px 40px rgba(0,0,0,0.25)" : "none",
           transition: "background 0.3s, border 0.3s, box-shadow 0.3s",
         }}
         initial={{ y: -80, opacity: 0 }}
@@ -56,8 +80,8 @@ export function Navigation() {
               <div className="absolute inset-0 rounded-lg bg-sc-teal/15 group-hover:bg-sc-teal/25 transition-colors duration-200" />
               <div className="absolute inset-[3px] rounded-md bg-sc-teal flex items-center justify-center">
                 <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 1L11 4V10L7 13L3 10V4L7 1Z" fill="#060d1a" opacity="0.95" />
-                  <circle cx="7" cy="7" r="2" fill="#060d1a" opacity="0.6" />
+                  <path d="M7 1L11 4V10L7 13L3 10V4L7 1Z" fill="rgb(var(--sc-bg))" opacity="0.95" />
+                  <circle cx="7" cy="7" r="2" fill="rgb(var(--sc-bg))" opacity="0.6" />
                 </svg>
               </div>
             </div>
@@ -68,20 +92,29 @@ export function Navigation() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <motion.span key={link.href} whileHover={{ y: -1 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className="inline-block">
-                <Link
-                  href={link.href}
-                  className="text-sm text-sc-text-2 hover:text-sc-text px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-150 font-medium"
-                >
-                  {link.label}
-                </Link>
-              </motion.span>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.href === `#${activeSection}`;
+              return (
+                <motion.span key={link.href} whileHover={{ y: -1 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className="inline-block">
+                  <Link
+                    href={link.href}
+                    className={`relative text-sm px-3 py-2 rounded-lg hover:bg-sc-surface/60 transition-all duration-150 font-medium flex flex-col items-center gap-0.5 ${isActive ? "text-sc-text" : "text-sc-text-2 hover:text-sc-text"}`}
+                  >
+                    {link.label}
+                    <motion.span
+                      className="block h-px rounded-full bg-sc-teal"
+                      animate={{ width: isActive ? "100%" : "0%", opacity: isActive ? 1 : 0 }}
+                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    />
+                  </Link>
+                </motion.span>
+              );
+            })}
           </nav>
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+            <ThemeToggle />
             <motion.span whileHover={{ y: -1 }} className="inline-block" transition={{ type: "spring", stiffness: 400, damping: 28 }}>
               <Link
                 href="/book"
@@ -101,8 +134,10 @@ export function Navigation() {
           </div>
 
           {/* Mobile burger */}
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
           <button
-            className="md:hidden p-2 -mr-1 text-sc-text-2 hover:text-sc-text transition-colors"
+            className="p-2 -mr-1 text-sc-text-2 hover:text-sc-text transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
@@ -119,6 +154,7 @@ export function Navigation() {
               />
             </div>
           </button>
+          </div>
         </div>
       </motion.header>
 

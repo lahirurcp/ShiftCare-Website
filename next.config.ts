@@ -55,8 +55,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Disable source maps in production (hides source structure)
   productionBrowserSourceMaps: false,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production",
+  },
 
   // Add security headers to every response
   async headers() {

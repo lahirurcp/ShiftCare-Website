@@ -31,7 +31,7 @@ export default function BookPage() {
       </header>
 
       <div className="relative z-10 mx-auto max-w-3xl px-6 py-16 md:py-24">
-        <p className="text-xs font-semibold uppercase tracking-widest text-sc-teal mb-3">For institutions</p>
+        <span className="cinematic-label mb-3 block">For institutions</span>
         <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">
           Book a conversation or pilot
         </h1>
@@ -54,7 +54,7 @@ export default function BookPage() {
                 href={calUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-sc-teal px-6 py-3.5 text-sm font-bold text-sc-bg hover:bg-sc-teal-2 transition-colors shadow-lg shadow-sc-teal/25"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-sc-teal px-6 py-3.5 text-sm font-bold text-sc-bg hover:brightness-110 transition-colors glow-teal"
               >
                 Pick a time
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

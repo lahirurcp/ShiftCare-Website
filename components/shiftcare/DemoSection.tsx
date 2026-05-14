@@ -2,48 +2,69 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { fadeUp, scaleReveal, staggerContainer, viewport } from "@/lib/animations";
+import {
+  atmosphericFade,
+  blurIn,
+  cinematicReveal,
+  scaleReveal,
+  staggerCinematic,
+  viewport,
+} from "@/lib/animations";
+
+const callouts = [
+  {
+    title: "Adaptive difficulty",
+    desc: "Scenarios scale to student competency level automatically",
+  },
+  {
+    title: "Decision audit trail",
+    desc: "Every choice timestamped and linked to clinical rationale",
+  },
+  {
+    title: "Maya explains why",
+    desc: "AI mentor debriefs each outcome with evidence-based reasoning",
+  },
+];
 
 export function DemoSection() {
   return (
-    <section id="demo" className="relative py-24 overflow-hidden">
-      {/* Background */}
+    <section id="demo" className="relative py-32 md:py-40 overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-sc-indigo/4 rounded-full blur-[140px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-sc-indigo/[0.03] rounded-full blur-[140px]" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6">
+
+        {/* Header */}
         <motion.div
-          variants={staggerContainer}
+          variants={staggerCinematic}
           initial="hidden"
           whileInView="visible"
           viewport={viewport}
-          className="text-center mb-12"
+          className="text-center mb-14"
         >
-          <motion.div variants={fadeUp}>
-            <span className="inline-block text-xs font-semibold tracking-widest text-sc-teal uppercase mb-4 px-3 py-1 rounded-full border border-sc-teal/20 bg-sc-teal/5">
-              Live Simulator
-            </span>
-          </motion.div>
+          <motion.span variants={atmosphericFade} className="cinematic-label mb-6">
+            Live Simulator
+          </motion.span>
           <motion.h2
-            variants={fadeUp}
-            className="font-display text-4xl md:text-5xl font-bold text-sc-text mb-4"
+            variants={cinematicReveal}
+            className="font-display font-bold text-sc-text mt-6 mb-4"
+            style={{ fontSize: "clamp(2.2rem, 5vw, 4rem)" }}
           >
             Your ward, right now.
           </motion.h2>
-          <motion.p
-            variants={fadeUp}
-            className="text-sc-text-2 text-lg max-w-2xl mx-auto"
-          >
+          <motion.p variants={blurIn} className="text-sc-text-2 text-lg max-w-2xl mx-auto leading-relaxed">
             Six patients. Limited time. Every decision carries clinical weight.
-            This is ShiftCare — no tutorial required.
+            No tutorial required.
           </motion.p>
-          <motion.div variants={fadeUp} className="mt-8 max-w-2xl mx-auto">
-            <div className="rounded-xl border border-sc-teal/20 bg-sc-surface/60 px-4 py-3 text-left text-sm text-sc-text-2 leading-relaxed">
-              <span className="font-semibold text-sc-text">Two ways to evaluate.</span> This embed is a{" "}
-              <strong className="text-sc-text">public marketing preview</strong> — instant, no login. For{" "}
-              <strong className="text-sc-text">cohort pilots</strong> (time-boxed access, seats, educator views,
-              agreements),{" "}
+          <motion.div variants={blurIn} className="mt-8 max-w-2xl mx-auto">
+            <div className="rounded-xl border border-sc-teal/12 bg-sc-surface/40 px-5 py-3.5 text-left text-sm text-sc-text-2 leading-relaxed">
+              <span className="font-semibold text-sc-text">Two ways to evaluate.</span>{" "}
+              This embed is a{" "}
+              <strong className="text-sc-text">public marketing preview</strong> — instant,
+              no login. For{" "}
+              <strong className="text-sc-text">cohort pilots</strong>{" "}
+              (time-boxed access, seats, educator views),{" "}
               <Link href="/book" className="text-sc-teal font-medium hover:underline">
                 book a conversation
               </Link>
@@ -52,75 +73,86 @@ export function DemoSection() {
           </motion.div>
         </motion.div>
 
-        {/* Browser chrome */}
+        {/* Browser chrome + iframe */}
         <motion.div
           variants={scaleReveal}
           initial="hidden"
           whileInView="visible"
           viewport={viewport}
-          className="relative mx-auto rounded-2xl overflow-hidden shadow-2xl shadow-black/60 shadow-sc-teal/10 ring-1 ring-sc-teal/20"
+          className="relative mx-auto rounded-2xl overflow-hidden ring-1 ring-sc-teal/15"
         >
-          {/* Browser top bar */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-sc-surface2 border-b border-white/5">
+          {/* Browser bar */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-sc-surface2 border-b border-sc-teal/10">
             <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-red-500/70" />
-              <div className="w-3 h-3 rounded-full bg-amber-500/70" />
-              <div className="w-3 h-3 rounded-full bg-green-500/70" />
+              <div className="w-3 h-3 rounded-full bg-red-500/60" />
+              <div className="w-3 h-3 rounded-full bg-amber-500/60" />
+              <div className="w-3 h-3 rounded-full bg-green-500/60" />
             </div>
             <div className="flex-1 mx-4">
               <div className="bg-sc-bg/60 rounded-md px-3 py-1.5 flex items-center gap-2 max-w-sm mx-auto">
-                <svg className="w-3 h-3 text-sc-text-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                <svg
+                  className="w-3 h-3 text-sc-text-3 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
                 </svg>
-                <span className="text-xs text-sc-text-3 font-mono">app.shiftcare.io/ward/simulation</span>
+                <span className="text-xs text-sc-text-3 font-mono">
+                  app.shiftcare.io/ward/simulation
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <motion.span
-                className="text-xs text-sc-teal font-medium px-2 py-0.5 rounded bg-sc-teal/10 border border-sc-teal/20"
-                animate={{ opacity: [1, 0.65, 1] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                LIVE
-              </motion.span>
-            </div>
+            <motion.span
+              className="text-xs text-sc-teal font-semibold px-2 py-0.5 rounded bg-sc-teal/8 border border-sc-teal/18 font-mono"
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: [0.16, 1, 0.3, 1] }}
+            >
+              LIVE
+            </motion.span>
           </div>
 
-          {/* Iframe embed */}
+          {/* Iframe */}
           <div className="relative w-full" style={{ paddingTop: "62.5%" }}>
             <iframe
               src="/ShiftCare_v11.html"
               className="absolute inset-0 w-full h-full border-0"
-              title="ShiftCare Clinical Simulation"
+              title="ShiftCare Clinical Simulation — Educational Environment"
               allow="fullscreen"
               loading="lazy"
             />
           </div>
         </motion.div>
 
-        {/* Below the demo callouts */}
+        {/* Callouts — minimal, no emoji */}
         <motion.div
-          variants={staggerContainer}
+          variants={staggerCinematic}
           initial="hidden"
           whileInView="visible"
           viewport={viewport}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-0 mt-12"
         >
-          {[
-            { icon: "🎯", title: "Adaptive difficulty", desc: "Scenarios scale to student competency level automatically" },
-            { icon: "📝", title: "Decision audit trail", desc: "Every choice timestamped and linked to clinical rationale" },
-            { icon: "💬", title: "Maya explains why", desc: "AI mentor debriefs each outcome with evidence-based reasoning" },
-          ].map((item) => (
+          {callouts.map((item, i) => (
             <motion.div
               key={item.title}
-              variants={fadeUp}
-              className="glass rounded-xl p-5 flex items-start gap-4 border border-sc-teal/10 hover:border-sc-teal/25 transition-colors"
+              variants={blurIn}
+              className={`py-6 px-8 flex flex-col gap-1.5 ${
+                i < callouts.length - 1
+                  ? "sm:border-r border-sc-teal/10 border-b sm:border-b-0"
+                  : ""
+              }`}
             >
-              <span className="text-2xl flex-shrink-0">{item.icon}</span>
-              <div>
-                <div className="font-semibold text-sc-text text-sm mb-1">{item.title}</div>
-                <div className="text-sc-text-3 text-xs leading-relaxed">{item.desc}</div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-1 h-4 rounded-full bg-sc-teal/50" />
+                <span className="font-semibold text-sc-text text-sm">{item.title}</span>
               </div>
+              <p className="text-sc-text-3 text-xs leading-relaxed pl-3.5">{item.desc}</p>
             </motion.div>
           ))}
         </motion.div>
